@@ -1,0 +1,52 @@
+html,
+body,
+#root {
+  margin: 0;
+  min-height: 100%;
+}
+
+body {
+  overflow: hidden;
+  /* font-family: "Segoe UI", sans-serif; */
+  /* background: #0f0f1a; */
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+
+/* ❌ remove GrapesJS background theme */
+.gjs-one-bg {
+  background: transparent !important;
+}
+
+/* sidebar container inside GrapesJS UI */
+.gjs-pn-views-container,
+.gjs-pn-views,
+.gjs-pn-panel {
+  background: transparent !important;
+}
+
+/* block manager background */
+.gjs-blocks-c {
+  background: transparent !important;
+}
+
+
+.gjs-block-category {
+  display: flex;
+  flex-direction: column;
+}
+
+.gjs-block-category.gjs-collapsed .gjs-blocks-c {
+  display: none !important;
+}
+
+
+/************Side Baaaar & panels*/
+.gjs-one-bg {
+    background-color: #151827 !important;
+}
