@@ -1,70 +1,3 @@
-
-// // import TemplateBuilderPage from "@cib/features-notifications";
-
-// // export default function TemplatesPage() {
-// //   return <TemplateBuilderPage />
-      
-// // }
-
-
-
-// "use client";
-
-// import { useState } from "react";
-
-// import TemplateBuilderPage from "@cib/features-notifications";
-// import MessageForm from "./MessageForm";
-
-// export default function TemplatesPage() {
-//   const [htmlTemplate, setHtmlTemplate] = useState("");
-
-//   return (
-//     <div>
-//       <TemplateBuilderPage
-//         onSave={(payload) => {
-//           console.log("saved html", payload.html);
-
-//           setHtmlTemplate(payload.html);
-//         }}
-//       />
-
-//       <MessageForm html={htmlTemplate} />
-//     </div>
-//   );
-// }
-
-
-
-/************************** */
-
-
-// import { useEffect, useState } from "react";
-
-// interface MessageFormProps {
-//   html: string;
-// }
-
-// export default function MessageForm({
-//   html,
-// }: MessageFormProps) {
-//   const [value, setValue] = useState("");
-
-//   useEffect(() => {
-//     if (html) {
-//       setValue(html);
-//     }
-//   }, [html]);
-
-//   return (
-//     <textarea
-//       value={value}
-//       onChange={(e) => setValue(e.target.value)}
-//       rows={10}
-//     />
-//   );
-// }
-/***********************/
-
 'use client'
 
 import {
@@ -144,6 +77,7 @@ export function TemplateEditor({
     handleSubmit,
     control,
     watch,
+    setValue,
     formState: { errors, isSubmitting },
   } = useForm<TemplateFormData>({
     resolver: zodResolver(templateFormSchema),
@@ -184,6 +118,21 @@ export function TemplateEditor({
       setActiveLangId(languageIds[0] ?? 1)
     }
   }, [languageIds, activeLangId])
+
+  useEffect( ()=> {
+    if (!html) return;
+
+    const inboxIndex = watch("inboxTemplates")?.findIndex(
+      t => t.languageId === activeLangId
+    );
+
+    if (inboxIndex > -1 ) {
+      setValue(
+        `inboxTemplates.${inboxIndex}.fullBody`,
+        html
+      );
+    }
+  }, [html, activeLangId, setValue, watch])
 
   const handleAddLanguage = (languageId: number) => {
     appendContent(makeEmptyContent(languageId))
@@ -779,7 +728,6 @@ function ChannelTemplateEditors({
                 <div className="space-y-1.5">
   <FieldLabel>Full Body</FieldLabel>
   <Textarea
-    value={html}
     rows={8}
     placeholder="Inbox full message body..."
     {...register(`inboxTemplates.${currentInboxIndex}.fullBody`)}
