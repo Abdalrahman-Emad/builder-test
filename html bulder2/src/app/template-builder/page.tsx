@@ -1,751 +1,776 @@
-'use client'
+// 'use client'
 
-import {
-  Button,
-  FieldError,
-  FieldLabel,
-  Input,
-  Label,
-  Textarea,
-} from '@cib/design-system-components'
-import { zodResolver } from '@hookform/resolvers/zod'
-import React, { useEffect, useState } from 'react'
-import { Control, useFieldArray, useForm, useWatch } from 'react-hook-form'
+// import {
+//   Button,
+//   FieldError,
+//   FieldLabel,
+//   Input,
+//   Label,
+//   Textarea,
+// } from '@cib/design-system-components'
+// import { zodResolver } from '@hookform/resolvers/zod'
+// import React, { useEffect, useState } from 'react'
+// import { Control, useFieldArray, useForm, useWatch } from 'react-hook-form'
 
-import { useRouter } from "next/navigation";
+// import { useRouter } from "next/navigation";
 
-import {
-  MessageTemplate,
-  useCreateMessageTemplateMutation,
-  useUpdateMessageTemplateMutation,
-} from '../../../state/templatesSlice'
-import {
-  InboxTemplateRequestDto,
-  PushTemplateRequestDto,
-  SmsTemplateRequestDto,
-  TemplateContentRequestDto,
-} from '../../../state/types'
-import { Switch } from '../chadcn components'
-import { AddLanguageDialog } from './AddLanguageDialog'
-import { getLanguageOption } from './languageUtils'
-import { TemplateFormData, templateFormSchema } from './schema'
+// import {
+//   MessageTemplate,
+//   useCreateMessageTemplateMutation,
+//   useUpdateMessageTemplateMutation,
+// } from '../../../state/templatesSlice'
+// import {
+//   InboxTemplateRequestDto,
+//   PushTemplateRequestDto,
+//   SmsTemplateRequestDto,
+//   TemplateContentRequestDto,
+// } from '../../../state/types'
+// import { Switch } from '../chadcn components'
+// import { AddLanguageDialog } from './AddLanguageDialog'
+// import { getLanguageOption } from './languageUtils'
+// import { TemplateFormData, templateFormSchema } from './schema'
 
 
 
-function cn(...classes: (string | undefined | null | false)[]) {
-  return classes.filter(Boolean).join(' ')
-}
+// function cn(...classes: (string | undefined | null | false)[]) {
+//   return classes.filter(Boolean).join(' ')
+// }
 
-function makeEmptyContent(languageId: number): TemplateContentRequestDto {
-  return { languageId, text: '', title: '' }
-}
+// function makeEmptyContent(languageId: number): TemplateContentRequestDto {
+//   return { languageId, text: '', title: '' }
+// }
 
-function makeEmptySms(languageId: number): SmsTemplateRequestDto {
-  return { languageId, text: '' }
-}
+// function makeEmptySms(languageId: number): SmsTemplateRequestDto {
+//   return { languageId, text: '' }
+// }
 
-function makeEmptyPush(languageId: number): PushTemplateRequestDto {
-  return { languageId, title: '', text: '' }
-}
+// function makeEmptyPush(languageId: number): PushTemplateRequestDto {
+//   return { languageId, title: '', text: '' }
+// }
 
-function makeEmptyInbox(languageId: number): InboxTemplateRequestDto {
-  return { languageId, subject: '', text: '' }
-}
+// function makeEmptyInbox(languageId: number): InboxTemplateRequestDto {
+//   return { languageId, subject: '', text: '' }
+// }
 
-type ActiveChannel = 'sms' | 'push' | 'inbox'
+// type ActiveChannel = 'sms' | 'push' | 'inbox'
 
-interface Props {
-  template?: MessageTemplate
-  onSaved?: (saved: MessageTemplate) => void
-  onCancel?: () => void
-  refetch?: () => void
+// interface Props {
+//   template?: MessageTemplate
+//   onSaved?: (saved: MessageTemplate) => void
+//   onCancel?: () => void
+//   refetch?: () => void
   
-  html?: string
-}
+//   html?: string
+// }
 
-export function TemplateEditor({
-  template,
-  onSaved,
-  onCancel,
-  refetch,
-  html
-}: Props) {
-  const isNew = !template
+// export function TemplateEditor({
+//   template,
+//   onSaved,
+//   onCancel,
+//   refetch,
+//   html
+// }: Props) {
+//   const isNew = !template
 
-  const {
-    register,
-    handleSubmit,
-    control,
-    watch,
-    setValue,
-    formState: { errors, isSubmitting },
-  } = useForm<TemplateFormData>({
-    resolver: zodResolver(templateFormSchema),
-    defaultValues: {
-      name: template?.name ?? '',
-      description: template?.description ?? '',
-      contents: template?.contents ?? [makeEmptyContent(1)],
-      smsTemplates: template?.smsTemplates ?? [],
-      pushTemplates: template?.pushTemplates ?? [],
-      inboxTemplates: template?.inboxTemplates ?? [],
-    },
-  })
+//   const {
+//     register,
+//     handleSubmit,
+//     control,
+//     watch,
+//     setValue,
+//     formState: { errors, isSubmitting },
+//   } = useForm<TemplateFormData>({
+//     resolver: zodResolver(templateFormSchema),
+//     defaultValues: {
+//       name: template?.name ?? '',
+//       description: template?.description ?? '',
+//       contents: template?.contents ?? [makeEmptyContent(1)],
+//       smsTemplates: template?.smsTemplates ?? [],
+//       pushTemplates: template?.pushTemplates ?? [],
+//       inboxTemplates: template?.inboxTemplates ?? [],
+//     },
+//   })
 
-  const {
-    fields: contentFields,
-    append: appendContent,
-    remove: removeContent,
-  } = useFieldArray({ control, name: 'contents' })
+//   const {
+//     fields: contentFields,
+//     append: appendContent,
+//     remove: removeContent,
+//   } = useFieldArray({ control, name: 'contents' })
 
-  // eslint-disable-next-line react-hooks/incompatible-library
-  const watchedContents = watch('contents')
-  const languageIds = watchedContents.map(c => c.languageId)
-  const [activeLangId, setActiveLangId] = useState<number>(languageIds[0] ?? 1)
-  const [activeChannel, setActiveChannel] = useState<ActiveChannel>('sms')
+//   // eslint-disable-next-line react-hooks/incompatible-library
+//   const watchedContents = watch('contents')
+//   const languageIds = watchedContents.map(c => c.languageId)
+//   const [activeLangId, setActiveLangId] = useState<number>(languageIds[0] ?? 1)
+//   const [activeChannel, setActiveChannel] = useState<ActiveChannel>('sms')
 
-  const [createTemplate] = useCreateMessageTemplateMutation()
-  const [updateTemplate] = useUpdateMessageTemplateMutation()
-
-
-  const isSaving = isSubmitting
-
-  const activeContentIndex = contentFields.findIndex(
-    c => c.languageId === activeLangId,
-  )
-
-  useEffect(() => {
-    if (!languageIds.includes(activeLangId) && languageIds.length > 0) {
-      setActiveLangId(languageIds[0] ?? 1)
-    }
-  }, [languageIds, activeLangId])
-
-  useEffect( ()=> {
-    if (!html) return;
-
-    const inboxIndex = watch("inboxTemplates")?.findIndex(
-      t => t.languageId === activeLangId
-    );
-
-    if (inboxIndex > -1 ) {
-      setValue(
-        `inboxTemplates.${inboxIndex}.fullBody`,
-        html
-      );
-    }
-  }, [html, activeLangId, setValue, watch])
-
-  const handleAddLanguage = (languageId: number) => {
-    appendContent(makeEmptyContent(languageId))
-    setActiveLangId(languageId)
-  }
-
-  const handleRemoveLanguage = (languageId: number) => {
-    const contentIndex = contentFields.findIndex(
-      c => c.languageId === languageId,
-    )
-    if (contentIndex > -1) {
-      removeContent(contentIndex)
-    }
-
-    if (activeLangId === languageId) {
-      const remaining = watchedContents.filter(c => c.languageId !== languageId)
-      setActiveLangId(remaining[0]?.languageId ?? 0)
-    }
-  }
-
-  const onSubmit = async (data: TemplateFormData) => {
-    try {
-      let saved: MessageTemplate
-      if (isNew) {
-        saved = await createTemplate(data).unwrap()
-      } else {
-        saved = await updateTemplate({ id: template!.id, dto: data }).unwrap()
-      }
-      onSaved?.(saved)
-      refetch()
-    } catch {
-      // error handling
-    }
-  }
-
-  return (
-    <form
-      onSubmit={handleSubmit(onSubmit)}
-      className="flex flex-col h-full"
-    >
-      {/* Top bar */}
-      <div className="flex items-center justify-between border-b px-6 py-4">
-        <h2 className="text-lg font-semibold">
-          {isNew ? 'New template' : 'Edit template'}
-        </h2>
-        <div className="flex gap-2">
-          {onCancel && (
-            <button
-              type="button"
-              onClick={onCancel}
-              className="rounded-md border px-4 py-1.5 text-sm font-medium hover:bg-accent transition-colors"
-            >
-              Cancel
-            </button>
-          )}
-          <Button
-            type="submit"
-            disabled={isSaving}
-            variant="default"
-            className="px-4 py-1.5 text-sm font-medium"
-          >
-            {isSaving ? 'Saving…' : 'Save'}
-          </Button>
-        </div>
-      </div>
-
-      {/* Scrollable body */}
-      <div className="flex-1 overflow-y-auto p-6 space-y-6">
-        {/* Name, Description, Title inputs */}
-        <div>
-          <Label>Name</Label>
-          <Input
-            placeholder="Template name"
-            {...register('name')}
-            aria-invalid={!!errors.name}
-          />
-          {errors.name && <FieldError>{errors.name.message}</FieldError>}
-        </div>
-        <div>
-          <Label>Description</Label>
-          <Input
-            placeholder="Short description of this template"
-            {...register('description')}
-          />
-        </div>
-
-        {/* Language tabs */}
-        <div className="flex flex-wrap items-center gap-2">
-          {/* ... globe icon ... */}
-          {languageIds.map(langId => {
-            const opt = getLanguageOption(langId)
-            return (
-              <LanguagePill
-                key={langId}
-                flag={opt.flag}
-                label={opt.label}
-                active={activeLangId === langId}
-                onClick={() => setActiveLangId(langId)}
-              />
-            )
-          })}
-          <AddLanguageDialog
-            existingLanguages={languageIds}
-            onAdd={handleAddLanguage}
-          >
-            <span className="inline-flex items-center gap-1 rounded-full border border-dashed px-3 py-1 text-sm text-muted-foreground hover:border-primary hover:text-primary transition-colors">
-              + Add language
-            </span>
-          </AddLanguageDialog>
-          {errors.contents && (
-            <FieldError>{errors.contents.message}</FieldError>
-          )}
-        </div>
-
-        {/* Generic template for selected language */}
-        {activeContentIndex > -1 && (
-          <div
-            key={activeLangId}
-            className="rounded-lg border bg-card"
-          >
-            <div className="flex items-center gap-2 border-b px-4 py-3">
-              {/* ... header ... */}
-              <span className="font-semibold text-sm">Generic template</span>
-              {languageIds.length > 1 && (
-                <button
-                  type="button"
-                  onClick={() => handleRemoveLanguage(activeLangId)}
-                  className="ml-auto text-xs text-destructive hover:underline"
-                >
-                  Remove language
-                </button>
-              )}
-            </div>
-            <div className="p-4 space-y-4">
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
-                  Title
-                </label>
-                <Input
-                  placeholder="Notification title"
-                  {...register(`contents.${activeContentIndex}.title`)}
-                  aria-invalid={!!errors.contents?.[activeContentIndex]?.title}
-                />
-                {errors.contents?.[activeContentIndex]?.title && (
-                  <FieldError>
-                    {errors.contents?.[activeContentIndex]?.title?.message}
-                  </FieldError>
-                )}
-              </div>
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
-                  Body
-                </label>
-                <Textarea
-                  rows={5}
-                  placeholder="Message content. Use {{variable}} for dynamic placeholders."
-                  {...register(`contents.${activeContentIndex}.text`)}
-                  aria-invalid={!!errors.contents?.[activeContentIndex]?.text}
-                />
-                {errors.contents?.[activeContentIndex]?.text && (
-                  <FieldError>
-                    {errors.contents?.[activeContentIndex]?.text?.message}
-                  </FieldError>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
-        {/* TODO: Add editors for SMS, Push, and Inbox templates */}
-        <ChannelTemplateEditors
-          key={`channel-editors-${activeLangId}`}
-          control={control}
-          register={register}
-          activeLangId={activeLangId}
-          errors={errors}
-          activeChannel={activeChannel}
-          setActiveChannel={setActiveChannel}
-        />
-      </div>
-    </form>
-  )
-}
-
-function LanguagePill({
-  flag,
-  label,
-  active,
-  onClick,
-}: {
-  flag: React.ReactNode
-  label: string
-  active: boolean
-  onClick: () => void
-}) {
-  return (
-    <Button
-      type="button"
-      onClick={onClick}
-      variant={active ? 'default' : 'outline'}
-      className={cn(
-        'inline-flex items-center gap-1 rounded-full px-3 py-1 text-sm font-medium',
-      )}
-    >
-      <span>{flag}</span>
-      {label}
-      {active && (
-        <span className="ml-1 h-1.5 w-1.5 rounded-full bg-primary-foreground" />
-      )}
-    </Button>
-  )
-}
-
-const SmsIcon = () => (
-  <svg
-    xmlns="http://www.w3.org/2000/svg"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth={2}
-    strokeLinecap="round"
-    strokeLinejoin="round"
-    className="size-4"
-  >
-    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-  </svg>
-)
-
-const PushIcon = () => (
-  <svg
-    xmlns="http://www.w3.org/2000/svg"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth={2}
-    strokeLinecap="round"
-    strokeLinejoin="round"
-    className="size-4"
-  >
-    <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
-    <path d="M13.73 21a2 2 0 0 1-3.46 0" />
-  </svg>
-)
-
-const InboxIcon = () => (
-  <svg
-    xmlns="http://www.w3.org/2000/svg"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth={2}
-    strokeLinecap="round"
-    strokeLinejoin="round"
-    className="size-4"
-  >
-    <polyline points="22 12 16 12 14 15 10 15 8 12 2 12" />
-    <path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z" />
-  </svg>
-)
-
-function ChannelBadge({
-  icon,
-  label,
-  active,
-  onClick,
-}: {
-  icon: React.ReactNode
-  label: string
-  active: boolean
-  onClick: () => void
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={cn(
-        'inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm font-medium transition-colors',
-        active
-          ? 'border-primary bg-primary text-primary-foreground'
-          : 'border-border bg-background text-foreground hover:bg-accent',
-      )}
-    >
-      {icon}
-      {label}
-    </button>
-  )
-}
-
-interface ChannelTemplateEditorsProps {
-  control: Control<TemplateFormData>
-  register: ReturnType<typeof useForm<TemplateFormData>>['register']
-  activeLangId: number
-  errors: ReturnType<typeof useForm<TemplateFormData>>['formState']['errors']
-  activeChannel: ActiveChannel
-  setActiveChannel: (channel: ActiveChannel) => void
-}
-
-function ChannelTemplateEditors({
-  control,
-  register,
-  activeLangId,
-  errors,
-  activeChannel,
-  setActiveChannel,
-}: ChannelTemplateEditorsProps) {
-  const {
-    fields: smsFields,
-    append: appendSms,
-    remove: removeSms,
-  } = useFieldArray({
-    control,
-    name: 'smsTemplates',
-  })
-  const {
-    fields: pushFields,
-    append: appendPush,
-    remove: removePush,
-  } = useFieldArray({
-    control,
-    name: 'pushTemplates',
-  })
-  const {
-    fields: inboxFields,
-    append: appendInbox,
-    remove: removeInbox,
-  } = useFieldArray({
-    control,
-    name: 'inboxTemplates',
-  })
-
-  const allSms = useWatch({ control, name: 'smsTemplates' }) ?? []
-  const allPush = useWatch({ control, name: 'pushTemplates' }) ?? []
-  const allInbox = useWatch({ control, name: 'inboxTemplates' }) ?? []
-
-  const currentSmsIndex = smsFields.findIndex(
-    t => t.languageId === activeLangId,
-  )
-  const currentPushIndex = pushFields.findIndex(
-    t => t.languageId === activeLangId,
-  )
-  const currentInboxIndex = inboxFields.findIndex(
-    t => t.languageId === activeLangId,
-  )
-
-  const currentSms = allSms.find(t => t.languageId === activeLangId)
-  const currentPush = allPush.find(t => t.languageId === activeLangId)
-  const currentInbox = allInbox.find(t => t.languageId === activeLangId)
-
-  const toggleSms = (enabled: boolean) => {
-    if (enabled) {
-      if (currentSmsIndex === -1) {
-        appendSms(makeEmptySms(activeLangId))
-      }
-    } else {
-      if (currentSmsIndex > -1) {
-        removeSms(currentSmsIndex)
-      }
-    }
-  }
-
-  const togglePush = (enabled: boolean) => {
-    if (enabled) {
-      if (currentPushIndex === -1) {
-        appendPush(makeEmptyPush(activeLangId))
-      }
-    } else {
-      if (currentPushIndex > -1) {
-        removePush(currentPushIndex)
-      }
-    }
-  }
-
-  const toggleInbox = (enabled: boolean) => {
-    if (enabled) {
-      if (currentInboxIndex === -1) {
-        appendInbox(makeEmptyInbox(activeLangId))
-      }
-    } else {
-      if (currentInboxIndex > -1) {
-        removeInbox(currentInboxIndex)
-      }
-    }
-  }
-
-  const langOpt = getLanguageOption(activeLangId)
-    const router = useRouter();
+//   const [createTemplate] = useCreateMessageTemplateMutation()
+//   const [updateTemplate] = useUpdateMessageTemplateMutation()
 
 
-  return (
-    <div className="rounded-lg border bg-card">
-      {/* Header */}
-      <div className="flex items-center gap-2 border-b px-4 py-3">
-        <span className="text-sm font-semibold">
-          Channel-specific templates
-        </span>
-        <span className="ml-1 inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
-          {langOpt.flag} {langOpt.label}
-        </span>
-        <div className="ml-auto flex gap-2">
-          <ChannelBadge
-            icon={<SmsIcon />}
-            label="SMS"
-            active={activeChannel === 'sms'}
-            onClick={() => setActiveChannel('sms')}
-          />
-          <ChannelBadge
-            icon={<PushIcon />}
-            label="Push"
-            active={activeChannel === 'push'}
-            onClick={() => setActiveChannel('push')}
-          />
-          <ChannelBadge
-            icon={<InboxIcon />}
-            label="Inbox"
-            active={activeChannel === 'inbox'}
-            onClick={() => setActiveChannel('inbox')}
-          />
-        </div>
-      </div>
+//   const isSaving = isSubmitting
 
-      {/* Body */}
-      <div className="p-4 space-y-4">
-        {activeChannel === 'sms' && (
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2 text-sm">
-                <SmsIcon />
-                <span className="font-medium">SMS</span>
-                <span className="text-xs text-muted-foreground">
-                  {currentSms
-                    ? 'Using specific template'
-                    : 'Using generic template'}
-                </span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-muted-foreground">
-                  Use specific template
-                </span>
-                <Switch
-                  checked={!!currentSms}
-                  onCheckedChange={toggleSms}
-                />
-              </div>
-            </div>
-            {currentSms && currentSmsIndex > -1 && (
-              <div className="space-y-1.5">
-                <FieldLabel>Body</FieldLabel>
-                <Textarea
-                  rows={4}
-                  placeholder="SMS message body..."
-                  {...register(`smsTemplates.${currentSmsIndex}.text`)}
-                  aria-invalid={!!errors.smsTemplates?.[currentSmsIndex]?.text}
-                />
-                {errors.smsTemplates?.[currentSmsIndex]?.text && (
-                  <FieldError>
-                    {errors.smsTemplates?.[currentSmsIndex]?.text?.message}
-                  </FieldError>
-                )}
-              </div>
-            )}
-          </div>
-        )}
-        {activeChannel === 'push' && (
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2 text-sm">
-                <PushIcon />
-                <span className="font-medium">Push Notification</span>
-                <span className="text-xs text-muted-foreground">
-                  {currentPush
-                    ? 'Using specific template'
-                    : 'Using generic template'}
-                </span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-muted-foreground">
-                  Use specific template
-                </span>
-                <Switch
-                  checked={!!currentPush}
-                  onCheckedChange={togglePush}
-                />
-              </div>
-            </div>
-            {currentPush && currentPushIndex > -1 && (
-              <>
-                <div className="space-y-1.5">
-                  <FieldLabel>Title</FieldLabel>
-                  <Input
-                    placeholder="Push notification title..."
-                    {...register(`pushTemplates.${currentPushIndex}.title`)}
-                    aria-invalid={
-                      !!errors.pushTemplates?.[currentPushIndex]?.title
-                    }
-                  />
-                  {errors.pushTemplates?.[currentPushIndex]?.title && (
-                    <FieldError>
-                      {errors.pushTemplates?.[currentPushIndex]?.title?.message}
-                    </FieldError>
-                  )}
-                </div>
-                <div className="space-y-1.5">
-                  <FieldLabel>Body</FieldLabel>
-                  <Textarea
-                    rows={4}
-                    placeholder="Push notification body..."
-                    {...register(`pushTemplates.${currentPushIndex}.text`)}
-                    aria-invalid={
-                      !!errors.pushTemplates?.[currentPushIndex]?.text
-                    }
-                  />
-                  {errors.pushTemplates?.[currentPushIndex]?.text && (
-                    <FieldError>
-                      {errors.pushTemplates?.[currentPushIndex]?.text?.message}
-                    </FieldError>
-                  )}
-                </div>
-              </>
-            )}
-          </div>
-        )}
-        {activeChannel === 'inbox' && (
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2 text-sm">
-                <InboxIcon />
-                <span className="font-medium">Inbox</span>
-                <span className="text-xs text-muted-foreground">
-                  {currentInbox
-                    ? 'Using specific template'
-                    : 'Using generic template'}
-                </span>
+//   const activeContentIndex = contentFields.findIndex(
+//     c => c.languageId === activeLangId,
+//   )
 
-              </div>
-              <div className="flex items-center gap-2">
-               <button
-                  onClick={() => router.push("/notifications/template-builder")}
-                  className="px-3 py-1.5 rounded bg-blue-600 text-white text-sm hover:bg-blue-700"
-                 >
-                   Open Template Builder
-              </button>
-                <span className="text-xs text-muted-foreground">
-                  Use specific template
-                </span>
+//   useEffect(() => {
+//     if (!languageIds.includes(activeLangId) && languageIds.length > 0) {
+//       setActiveLangId(languageIds[0] ?? 1)
+//     }
+//   }, [languageIds, activeLangId])
+
+//   useEffect( ()=> {
+//     if (!html) return;
+
+//     const inboxIndex = watch("inboxTemplates")?.findIndex(
+//       t => t.languageId === activeLangId
+//     );
+
+//     if (inboxIndex > -1 ) {
+//       setValue(
+//         `inboxTemplates.${inboxIndex}.fullBody`,
+//         html
+//       );
+//     }
+//   }, [html, activeLangId, setValue, watch])
+
+//   const handleAddLanguage = (languageId: number) => {
+//     appendContent(makeEmptyContent(languageId))
+//     setActiveLangId(languageId)
+//   }
+
+//   const handleRemoveLanguage = (languageId: number) => {
+//     const contentIndex = contentFields.findIndex(
+//       c => c.languageId === languageId,
+//     )
+//     if (contentIndex > -1) {
+//       removeContent(contentIndex)
+//     }
+
+//     if (activeLangId === languageId) {
+//       const remaining = watchedContents.filter(c => c.languageId !== languageId)
+//       setActiveLangId(remaining[0]?.languageId ?? 0)
+//     }
+//   }
+
+//   const onSubmit = async (data: TemplateFormData) => {
+//     try {
+//       let saved: MessageTemplate
+//       if (isNew) {
+//         saved = await createTemplate(data).unwrap()
+//       } else {
+//         saved = await updateTemplate({ id: template!.id, dto: data }).unwrap()
+//       }
+//       onSaved?.(saved)
+//       refetch()
+//     } catch {
+//       // error handling
+//     }
+//   }
+
+//   return (
+//     <form
+//       onSubmit={handleSubmit(onSubmit)}
+//       className="flex flex-col h-full"
+//     >
+//       {/* Top bar */}
+//       <div className="flex items-center justify-between border-b px-6 py-4">
+//         <h2 className="text-lg font-semibold">
+//           {isNew ? 'New template' : 'Edit template'}
+//         </h2>
+//         <div className="flex gap-2">
+//           {onCancel && (
+//             <button
+//               type="button"
+//               onClick={onCancel}
+//               className="rounded-md border px-4 py-1.5 text-sm font-medium hover:bg-accent transition-colors"
+//             >
+//               Cancel
+//             </button>
+//           )}
+//           <Button
+//             type="submit"
+//             disabled={isSaving}
+//             variant="default"
+//             className="px-4 py-1.5 text-sm font-medium"
+//           >
+//             {isSaving ? 'Saving…' : 'Save'}
+//           </Button>
+//         </div>
+//       </div>
+
+//       {/* Scrollable body */}
+//       <div className="flex-1 overflow-y-auto p-6 space-y-6">
+//         {/* Name, Description, Title inputs */}
+//         <div>
+//           <Label>Name</Label>
+//           <Input
+//             placeholder="Template name"
+//             {...register('name')}
+//             aria-invalid={!!errors.name}
+//           />
+//           {errors.name && <FieldError>{errors.name.message}</FieldError>}
+//         </div>
+//         <div>
+//           <Label>Description</Label>
+//           <Input
+//             placeholder="Short description of this template"
+//             {...register('description')}
+//           />
+//         </div>
+
+//         {/* Language tabs */}
+//         <div className="flex flex-wrap items-center gap-2">
+//           {/* ... globe icon ... */}
+//           {languageIds.map(langId => {
+//             const opt = getLanguageOption(langId)
+//             return (
+//               <LanguagePill
+//                 key={langId}
+//                 flag={opt.flag}
+//                 label={opt.label}
+//                 active={activeLangId === langId}
+//                 onClick={() => setActiveLangId(langId)}
+//               />
+//             )
+//           })}
+//           <AddLanguageDialog
+//             existingLanguages={languageIds}
+//             onAdd={handleAddLanguage}
+//           >
+//             <span className="inline-flex items-center gap-1 rounded-full border border-dashed px-3 py-1 text-sm text-muted-foreground hover:border-primary hover:text-primary transition-colors">
+//               + Add language
+//             </span>
+//           </AddLanguageDialog>
+//           {errors.contents && (
+//             <FieldError>{errors.contents.message}</FieldError>
+//           )}
+//         </div>
+
+//         {/* Generic template for selected language */}
+//         {activeContentIndex > -1 && (
+//           <div
+//             key={activeLangId}
+//             className="rounded-lg border bg-card"
+//           >
+//             <div className="flex items-center gap-2 border-b px-4 py-3">
+//               {/* ... header ... */}
+//               <span className="font-semibold text-sm">Generic template</span>
+//               {languageIds.length > 1 && (
+//                 <button
+//                   type="button"
+//                   onClick={() => handleRemoveLanguage(activeLangId)}
+//                   className="ml-auto text-xs text-destructive hover:underline"
+//                 >
+//                   Remove language
+//                 </button>
+//               )}
+//             </div>
+//             <div className="p-4 space-y-4">
+//               <div className="space-y-1.5">
+//                 <label className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+//                   Title
+//                 </label>
+//                 <Input
+//                   placeholder="Notification title"
+//                   {...register(`contents.${activeContentIndex}.title`)}
+//                   aria-invalid={!!errors.contents?.[activeContentIndex]?.title}
+//                 />
+//                 {errors.contents?.[activeContentIndex]?.title && (
+//                   <FieldError>
+//                     {errors.contents?.[activeContentIndex]?.title?.message}
+//                   </FieldError>
+//                 )}
+//               </div>
+//               <div className="space-y-1.5">
+//                 <label className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+//                   Body
+//                 </label>
+//                 <Textarea
+//                   rows={5}
+//                   placeholder="Message content. Use {{variable}} for dynamic placeholders."
+//                   {...register(`contents.${activeContentIndex}.text`)}
+//                   aria-invalid={!!errors.contents?.[activeContentIndex]?.text}
+//                 />
+//                 {errors.contents?.[activeContentIndex]?.text && (
+//                   <FieldError>
+//                     {errors.contents?.[activeContentIndex]?.text?.message}
+//                   </FieldError>
+//                 )}
+//               </div>
+//             </div>
+//           </div>
+//         )}
+//         {/* TODO: Add editors for SMS, Push, and Inbox templates */}
+//         <ChannelTemplateEditors
+//           key={`channel-editors-${activeLangId}`}
+//           control={control}
+//           register={register}
+//           activeLangId={activeLangId}
+//           errors={errors}
+//           activeChannel={activeChannel}
+//           setActiveChannel={setActiveChannel}
+//         />
+//       </div>
+//     </form>
+//   )
+// }
+
+// function LanguagePill({
+//   flag,
+//   label,
+//   active,
+//   onClick,
+// }: {
+//   flag: React.ReactNode
+//   label: string
+//   active: boolean
+//   onClick: () => void
+// }) {
+//   return (
+//     <Button
+//       type="button"
+//       onClick={onClick}
+//       variant={active ? 'default' : 'outline'}
+//       className={cn(
+//         'inline-flex items-center gap-1 rounded-full px-3 py-1 text-sm font-medium',
+//       )}
+//     >
+//       <span>{flag}</span>
+//       {label}
+//       {active && (
+//         <span className="ml-1 h-1.5 w-1.5 rounded-full bg-primary-foreground" />
+//       )}
+//     </Button>
+//   )
+// }
+
+// const SmsIcon = () => (
+//   <svg
+//     xmlns="http://www.w3.org/2000/svg"
+//     viewBox="0 0 24 24"
+//     fill="none"
+//     stroke="currentColor"
+//     strokeWidth={2}
+//     strokeLinecap="round"
+//     strokeLinejoin="round"
+//     className="size-4"
+//   >
+//     <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+//   </svg>
+// )
+
+// const PushIcon = () => (
+//   <svg
+//     xmlns="http://www.w3.org/2000/svg"
+//     viewBox="0 0 24 24"
+//     fill="none"
+//     stroke="currentColor"
+//     strokeWidth={2}
+//     strokeLinecap="round"
+//     strokeLinejoin="round"
+//     className="size-4"
+//   >
+//     <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+//     <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+//   </svg>
+// )
+
+// const InboxIcon = () => (
+//   <svg
+//     xmlns="http://www.w3.org/2000/svg"
+//     viewBox="0 0 24 24"
+//     fill="none"
+//     stroke="currentColor"
+//     strokeWidth={2}
+//     strokeLinecap="round"
+//     strokeLinejoin="round"
+//     className="size-4"
+//   >
+//     <polyline points="22 12 16 12 14 15 10 15 8 12 2 12" />
+//     <path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z" />
+//   </svg>
+// )
+
+// function ChannelBadge({
+//   icon,
+//   label,
+//   active,
+//   onClick,
+// }: {
+//   icon: React.ReactNode
+//   label: string
+//   active: boolean
+//   onClick: () => void
+// }) {
+//   return (
+//     <button
+//       type="button"
+//       onClick={onClick}
+//       className={cn(
+//         'inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm font-medium transition-colors',
+//         active
+//           ? 'border-primary bg-primary text-primary-foreground'
+//           : 'border-border bg-background text-foreground hover:bg-accent',
+//       )}
+//     >
+//       {icon}
+//       {label}
+//     </button>
+//   )
+// }
+
+// interface ChannelTemplateEditorsProps {
+//   control: Control<TemplateFormData>
+//   register: ReturnType<typeof useForm<TemplateFormData>>['register']
+//   activeLangId: number
+//   errors: ReturnType<typeof useForm<TemplateFormData>>['formState']['errors']
+//   activeChannel: ActiveChannel
+//   setActiveChannel: (channel: ActiveChannel) => void
+// }
+
+// function ChannelTemplateEditors({
+//   control,
+//   register,
+//   activeLangId,
+//   errors,
+//   activeChannel,
+//   setActiveChannel,
+// }: ChannelTemplateEditorsProps) {
+//   const {
+//     fields: smsFields,
+//     append: appendSms,
+//     remove: removeSms,
+//   } = useFieldArray({
+//     control,
+//     name: 'smsTemplates',
+//   })
+//   const {
+//     fields: pushFields,
+//     append: appendPush,
+//     remove: removePush,
+//   } = useFieldArray({
+//     control,
+//     name: 'pushTemplates',
+//   })
+//   const {
+//     fields: inboxFields,
+//     append: appendInbox,
+//     remove: removeInbox,
+//   } = useFieldArray({
+//     control,
+//     name: 'inboxTemplates',
+//   })
+
+//   const allSms = useWatch({ control, name: 'smsTemplates' }) ?? []
+//   const allPush = useWatch({ control, name: 'pushTemplates' }) ?? []
+//   const allInbox = useWatch({ control, name: 'inboxTemplates' }) ?? []
+
+//   const currentSmsIndex = smsFields.findIndex(
+//     t => t.languageId === activeLangId,
+//   )
+//   const currentPushIndex = pushFields.findIndex(
+//     t => t.languageId === activeLangId,
+//   )
+//   const currentInboxIndex = inboxFields.findIndex(
+//     t => t.languageId === activeLangId,
+//   )
+
+//   const currentSms = allSms.find(t => t.languageId === activeLangId)
+//   const currentPush = allPush.find(t => t.languageId === activeLangId)
+//   const currentInbox = allInbox.find(t => t.languageId === activeLangId)
+
+//   const toggleSms = (enabled: boolean) => {
+//     if (enabled) {
+//       if (currentSmsIndex === -1) {
+//         appendSms(makeEmptySms(activeLangId))
+//       }
+//     } else {
+//       if (currentSmsIndex > -1) {
+//         removeSms(currentSmsIndex)
+//       }
+//     }
+//   }
+
+//   const togglePush = (enabled: boolean) => {
+//     if (enabled) {
+//       if (currentPushIndex === -1) {
+//         appendPush(makeEmptyPush(activeLangId))
+//       }
+//     } else {
+//       if (currentPushIndex > -1) {
+//         removePush(currentPushIndex)
+//       }
+//     }
+//   }
+
+//   const toggleInbox = (enabled: boolean) => {
+//     if (enabled) {
+//       if (currentInboxIndex === -1) {
+//         appendInbox(makeEmptyInbox(activeLangId))
+//       }
+//     } else {
+//       if (currentInboxIndex > -1) {
+//         removeInbox(currentInboxIndex)
+//       }
+//     }
+//   }
+
+//   const langOpt = getLanguageOption(activeLangId)
+//     const router = useRouter();
 
 
-                <Switch
-                  checked={!!currentInbox}
-                  onCheckedChange={toggleInbox}
-                />
+//   return (
+//     <div className="rounded-lg border bg-card">
+//       {/* Header */}
+//       <div className="flex items-center gap-2 border-b px-4 py-3">
+//         <span className="text-sm font-semibold">
+//           Channel-specific templates
+//         </span>
+//         <span className="ml-1 inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
+//           {langOpt.flag} {langOpt.label}
+//         </span>
+//         <div className="ml-auto flex gap-2">
+//           <ChannelBadge
+//             icon={<SmsIcon />}
+//             label="SMS"
+//             active={activeChannel === 'sms'}
+//             onClick={() => setActiveChannel('sms')}
+//           />
+//           <ChannelBadge
+//             icon={<PushIcon />}
+//             label="Push"
+//             active={activeChannel === 'push'}
+//             onClick={() => setActiveChannel('push')}
+//           />
+//           <ChannelBadge
+//             icon={<InboxIcon />}
+//             label="Inbox"
+//             active={activeChannel === 'inbox'}
+//             onClick={() => setActiveChannel('inbox')}
+//           />
+//         </div>
+//       </div>
+
+//       {/* Body */}
+//       <div className="p-4 space-y-4">
+//         {activeChannel === 'sms' && (
+//           <div className="space-y-3">
+//             <div className="flex items-center justify-between">
+//               <div className="flex items-center gap-2 text-sm">
+//                 <SmsIcon />
+//                 <span className="font-medium">SMS</span>
+//                 <span className="text-xs text-muted-foreground">
+//                   {currentSms
+//                     ? 'Using specific template'
+//                     : 'Using generic template'}
+//                 </span>
+//               </div>
+//               <div className="flex items-center gap-2">
+//                 <span className="text-xs text-muted-foreground">
+//                   Use specific template
+//                 </span>
+//                 <Switch
+//                   checked={!!currentSms}
+//                   onCheckedChange={toggleSms}
+//                 />
+//               </div>
+//             </div>
+//             {currentSms && currentSmsIndex > -1 && (
+//               <div className="space-y-1.5">
+//                 <FieldLabel>Body</FieldLabel>
+//                 <Textarea
+//                   rows={4}
+//                   placeholder="SMS message body..."
+//                   {...register(`smsTemplates.${currentSmsIndex}.text`)}
+//                   aria-invalid={!!errors.smsTemplates?.[currentSmsIndex]?.text}
+//                 />
+//                 {errors.smsTemplates?.[currentSmsIndex]?.text && (
+//                   <FieldError>
+//                     {errors.smsTemplates?.[currentSmsIndex]?.text?.message}
+//                   </FieldError>
+//                 )}
+//               </div>
+//             )}
+//           </div>
+//         )}
+//         {activeChannel === 'push' && (
+//           <div className="space-y-3">
+//             <div className="flex items-center justify-between">
+//               <div className="flex items-center gap-2 text-sm">
+//                 <PushIcon />
+//                 <span className="font-medium">Push Notification</span>
+//                 <span className="text-xs text-muted-foreground">
+//                   {currentPush
+//                     ? 'Using specific template'
+//                     : 'Using generic template'}
+//                 </span>
+//               </div>
+//               <div className="flex items-center gap-2">
+//                 <span className="text-xs text-muted-foreground">
+//                   Use specific template
+//                 </span>
+//                 <Switch
+//                   checked={!!currentPush}
+//                   onCheckedChange={togglePush}
+//                 />
+//               </div>
+//             </div>
+//             {currentPush && currentPushIndex > -1 && (
+//               <>
+//                 <div className="space-y-1.5">
+//                   <FieldLabel>Title</FieldLabel>
+//                   <Input
+//                     placeholder="Push notification title..."
+//                     {...register(`pushTemplates.${currentPushIndex}.title`)}
+//                     aria-invalid={
+//                       !!errors.pushTemplates?.[currentPushIndex]?.title
+//                     }
+//                   />
+//                   {errors.pushTemplates?.[currentPushIndex]?.title && (
+//                     <FieldError>
+//                       {errors.pushTemplates?.[currentPushIndex]?.title?.message}
+//                     </FieldError>
+//                   )}
+//                 </div>
+//                 <div className="space-y-1.5">
+//                   <FieldLabel>Body</FieldLabel>
+//                   <Textarea
+//                     rows={4}
+//                     placeholder="Push notification body..."
+//                     {...register(`pushTemplates.${currentPushIndex}.text`)}
+//                     aria-invalid={
+//                       !!errors.pushTemplates?.[currentPushIndex]?.text
+//                     }
+//                   />
+//                   {errors.pushTemplates?.[currentPushIndex]?.text && (
+//                     <FieldError>
+//                       {errors.pushTemplates?.[currentPushIndex]?.text?.message}
+//                     </FieldError>
+//                   )}
+//                 </div>
+//               </>
+//             )}
+//           </div>
+//         )}
+//         {activeChannel === 'inbox' && (
+//           <div className="space-y-3">
+//             <div className="flex items-center justify-between">
+//               <div className="flex items-center gap-2 text-sm">
+//                 <InboxIcon />
+//                 <span className="font-medium">Inbox</span>
+//                 <span className="text-xs text-muted-foreground">
+//                   {currentInbox
+//                     ? 'Using specific template'
+//                     : 'Using generic template'}
+//                 </span>
+
+//               </div>
+//               <div className="flex items-center gap-2">
+//                <button
+//                   onClick={() => router.push("/notifications/template-builder")}
+//                   className="px-3 py-1.5 rounded bg-blue-600 text-white text-sm hover:bg-blue-700"
+//                  >
+//                    Open Template Builder
+//               </button>
+//                 <span className="text-xs text-muted-foreground">
+//                   Use specific template
+//                 </span>
+
+
+//                 <Switch
+//                   checked={!!currentInbox}
+//                   onCheckedChange={toggleInbox}
+//                 />
                 
-              </div>
-            </div>
-            {currentInbox && currentInboxIndex > -1 && (
-              <>
-                <div className="space-y-1.5">
-                  <FieldLabel>Subject</FieldLabel>
-                  <Input
-                    placeholder="Inbox message subject..."
-                    {...register(`inboxTemplates.${currentInboxIndex}.subject`)}
-                    aria-invalid={
-                      !!errors.inboxTemplates?.[currentInboxIndex]?.subject
-                    }
-                  />
-                  {errors.inboxTemplates?.[currentInboxIndex]?.subject && (
-                    <FieldError>
-                      {
-                        errors.inboxTemplates?.[currentInboxIndex]?.subject
-                          ?.message
-                      }
-                    </FieldError>
-                  )}
-                </div>
-                <div className="space-y-1.5">
-                  <FieldLabel>Body</FieldLabel>
-                  <Textarea
-                    rows={4}
-                    placeholder="Inbox message body..."
-                    {...register(`inboxTemplates.${currentInboxIndex}.text`)}
-                    aria-invalid={
-                      !!errors.inboxTemplates?.[currentInboxIndex]?.text
-                    }
-                  />
-                  {errors.inboxTemplates?.[currentInboxIndex]?.text && (
-                    <FieldError>
-                      {
-                        errors.inboxTemplates?.[currentInboxIndex]?.text
-                          ?.message
-                      }
-                    </FieldError>
-                  )}
-                </div>
+//               </div>
+//             </div>
+//             {currentInbox && currentInboxIndex > -1 && (
+//               <>
+//                 <div className="space-y-1.5">
+//                   <FieldLabel>Subject</FieldLabel>
+//                   <Input
+//                     placeholder="Inbox message subject..."
+//                     {...register(`inboxTemplates.${currentInboxIndex}.subject`)}
+//                     aria-invalid={
+//                       !!errors.inboxTemplates?.[currentInboxIndex]?.subject
+//                     }
+//                   />
+//                   {errors.inboxTemplates?.[currentInboxIndex]?.subject && (
+//                     <FieldError>
+//                       {
+//                         errors.inboxTemplates?.[currentInboxIndex]?.subject
+//                           ?.message
+//                       }
+//                     </FieldError>
+//                   )}
+//                 </div>
+//                 <div className="space-y-1.5">
+//                   <FieldLabel>Body</FieldLabel>
+//                   <Textarea
+//                     rows={4}
+//                     placeholder="Inbox message body..."
+//                     {...register(`inboxTemplates.${currentInboxIndex}.text`)}
+//                     aria-invalid={
+//                       !!errors.inboxTemplates?.[currentInboxIndex]?.text
+//                     }
+//                   />
+//                   {errors.inboxTemplates?.[currentInboxIndex]?.text && (
+//                     <FieldError>
+//                       {
+//                         errors.inboxTemplates?.[currentInboxIndex]?.text
+//                           ?.message
+//                       }
+//                     </FieldError>
+//                   )}
+//                 </div>
 
-                <div className="space-y-1.5">
-  <FieldLabel>Full Body</FieldLabel>
-  <Textarea
-    rows={8}
-    placeholder="Inbox full message body..."
-    {...register(`inboxTemplates.${currentInboxIndex}.fullBody`)}
-    aria-invalid={
-      !!errors.inboxTemplates?.[currentInboxIndex]?.fullBody
-    }
-  />
-  {errors.inboxTemplates?.[currentInboxIndex]?.fullBody && (
-    <FieldError>
-      {errors.inboxTemplates?.[currentInboxIndex]?.fullBody?.message}
-    </FieldError>
-  )}
-</div>
-              </>
-            )}
-          </div>
-        )}
-      </div>
+//                 <div className="space-y-1.5">
+//   <FieldLabel>Full Body</FieldLabel>
+//   <Textarea
+//     rows={8}
+//     placeholder="Inbox full message body..."
+//     {...register(`inboxTemplates.${currentInboxIndex}.fullBody`)}
+//     aria-invalid={
+//       !!errors.inboxTemplates?.[currentInboxIndex]?.fullBody
+//     }
+//   />
+//   {errors.inboxTemplates?.[currentInboxIndex]?.fullBody && (
+//     <FieldError>
+//       {errors.inboxTemplates?.[currentInboxIndex]?.fullBody?.message}
+//     </FieldError>
+//   )}
+// </div>
+//               </>
+//             )}
+//           </div>
+//         )}
+//       </div>
+//     </div>
+//   )
+// }
+/******************/
+"use client";
+
+import { useState } from "react";
+
+import { TemplateBuilderPage } from "@cib/feature-notifictions";
+import { TemplateEditor } from "../../../../../../../packages/feature-notifications/src/app/components/Templates/TemplateEditor";
+
+export default function TemplatesPage() {
+  const [htmlTemplate, setHtmlTemplate] = useState("");
+
+  return (
+    <div>
+      <TemplateBuilderPage
+        onSave={(payload) => {
+          console.log("saved html", payload.html);
+
+          setHtmlTemplate(payload.html);
+        }}
+      />
+
+      <TemplateEditor html={htmlTemplate} />
     </div>
-  )
+  );
 }
