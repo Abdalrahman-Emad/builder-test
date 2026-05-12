@@ -1010,3 +1010,36 @@ export function TemplatesSidebarLayout({
 }
 
     
+/*************fix styles *****/
+  /* chevron icon on category titles */
+#${blocksContainerId} .gjs-block-category__title {
+  padding: 10px 12px 6px !important;
+  color: #94a3b8 !important;
+  font-size: 11px !important;
+  font-weight: 800 !important;
+  letter-spacing: 0 !important;
+  text-transform: none !important;
+  border-top: 1px solid rgba(148, 163, 184, 0.12) !important;
+  /* ADD these three: */
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  cursor: pointer !important;
+}
+
+#${blocksContainerId} .gjs-block-category__title::after {
+  content: '';
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center;
+  transition: transform 200ms ease;
+  flex-shrink: 0;
+}
+
+#${blocksContainerId} .gjs-block-category.open .gjs-block-category__title::after {
+  transform: rotate(180deg);
+}
