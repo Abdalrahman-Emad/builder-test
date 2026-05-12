@@ -1714,3 +1714,41 @@ export default TemplateBuilderPage;
 // };
 
 // export default TemplateBuilderPage;
+
+
+
+
+
+
+
+
+/*************************************/
+useEffect(() => {
+  const cleanup = mountEditor();
+
+  const timer = setTimeout(() => {
+    const categories = document.querySelectorAll(
+      `#${blocksContainerId} .gjs-block-category`
+    );
+
+    categories.forEach((category) => {
+      const title = category.querySelector(
+        ".gjs-block-category__title"
+      );
+
+      if (!title) return;
+
+      title.addEventListener("click", () => {
+        category.classList.toggle("gjs-open");
+      });
+    });
+  }, 300);
+
+  return () => {
+    clearTimeout(timer);
+
+    if (typeof cleanup === "function") {
+      cleanup();
+    }
+  };
+}, [mountEditor, blocksContainerId]);
