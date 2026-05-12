@@ -1789,3 +1789,18 @@ useEffect(() => {
     }
   };
 }, [mountEditor, blocksContainerId]);
+/********************/
+#${blocksContainerId} .gjs-block-category.gjs-open .gjs-block-category__title::after {
+  transform: rotate(180deg);
+}
+
+#${blocksContainerId} .gjs-block-category .gjs-blocks-c {
+  display: none;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  padding: 10px;
+}
+
+#${blocksContainerId} .gjs-block-category.gjs-open .gjs-blocks-c {
+  display: grid !important;
+}
