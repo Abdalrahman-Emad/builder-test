@@ -779,5 +779,112 @@ export default function TemplatesPage() {
     </div>
   );
 }
-/********************/
+/***templatesSlice.ts************************/
+    import { baseApi } from '@cib/redux-store'
+
+import { CAMPAIGN_BASE } from './constants'
+import { TemplateRequestDto } from './types'
+
+export interface MessageTemplate extends TemplateRequestDto {
+  id: number
+  createdAt: string
+  updatedAt: string
+  createdBy?: string
+  updatedBy?: string
+}
+
+export type ApiResponse<T> = {
+  data: T
+}
+
+export type CursorApiResponse<T> = {
+  data: T[]
+  hasNext: boolean
+  cursor: string | null
+}
+
+export type MessageTemplateCreateDto = TemplateRequestDto
+
+export type MessageTemplateUpdateDto = TemplateRequestDto
+
+const BASE_URL = `${CAMPAIGN_BASE}/notifications/v1/campaign-portal/templates`
+
+export const templatesApi = baseApi.injectEndpoints({
+  endpoints: builder => ({
+    getMessageTemplates: builder.query<
+      CursorApiResponse<MessageTemplate>,
+      { search?: string; cursor?: string; size?: number }
+    >({
+      query: ({ search, cursor, size }) => ({
+        url: BASE_URL,
+        method: 'GET',
+        params: { search, cursor, size },
+      }),
+      serializeQueryArgs: ({ endpointName }) => {
+        return endpointName
+      },
+      forceRefetch({ currentArg, previousArg }) {
+        return currentArg !== previousArg
+      },
+      merge: (currentCache, newItems, { arg }) => {
+        if (!arg.cursor) {
+          currentCache.data = newItems.data
+        } else {
+          currentCache.data.push(...newItems.data)
+        }
+        currentCache.cursor = newItems.cursor
+        currentCache.hasNext = newItems.hasNext
+      },
+    }),
+
+    getMessageTemplateById: builder.query<ApiResponse<MessageTemplate>, number>(
+      {
+        query: id => ({
+          url: `${BASE_URL}/${id}`,
+          method: 'GET',
+        }),
+      },
+    ),
+
+    createMessageTemplate: builder.mutation<
+      MessageTemplate,
+      MessageTemplateCreateDto
+    >({
+      query: body => ({
+        url: BASE_URL,
+        method: 'POST',
+        body,
+      }),
+    }),
+
+    updateMessageTemplate: builder.mutation<
+      MessageTemplate,
+      { id: number; dto: MessageTemplateUpdateDto }
+    >({
+      query: ({ id, dto }) => ({
+        url: `${BASE_URL}/${id}`,
+        method: 'PUT',
+        body: dto,
+      }),
+    }),
+
+    deleteMessageTemplate: builder.mutation<void, number>({
+      query: id => ({
+        url: `${BASE_URL}/${id}`,
+        method: 'DELETE',
+      }),
+    }),
+  }),
+  overrideExisting: false,
+})
+
+export const {
+  useGetMessageTemplatesQuery,
+  useGetMessageTemplateByIdQuery,
+  useCreateMessageTemplateMutation,
+  useUpdateMessageTemplateMutation,
+  useDeleteMessageTemplateMutation,
+} = templatesApi
+
+    
     
