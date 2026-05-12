@@ -886,5 +886,127 @@ export const {
   useDeleteMessageTemplateMutation,
 } = templatesApi
 
-    
+    //////////////////////////*sidebar********************/
+      'use client'
+
+import { Button, toast } from '@cib/design-system-components'
+import { useParams, useRouter } from 'next/navigation'
+import { useCallback, useRef, useState } from 'react'
+
+import {
+  MessageTemplate,
+  useDeleteMessageTemplateMutation,
+  useGetMessageTemplatesQuery,
+} from '../state/templatesSlice'
+import { SidebarSkeleton } from './components/common/SidebarSkeleton'
+import { SidebarItem } from './components/Templates/SidebarItem'
+
+export function TemplatesSidebarLayout({
+  children,
+}: {
+  children: React.ReactNode
+}) {
+  const router = useRouter()
+  const params = useParams<{ id?: string }>()
+  const activeId = params.id ? Number(params.id) : null
+
+  const [cursor, setCursor] = useState<string | undefined>(undefined)
+  const {
+    data: templates,
+    isLoading,
+    isFetching,
+    error,
+    refetch,
+  } = useGetMessageTemplatesQuery({ cursor, size: 10 })
+  const [deleteTemplate] = useDeleteMessageTemplateMutation()
+
+  const handleNew = () => {
+    router.push('/notifications/templates/new')
+  }
+
+  const handleDelete = async (id: number) => {
+    await deleteTemplate(id).unwrap()
+    setCursor(undefined)
+    refetch()
+    toast.success('Template deleted successfully.')
+    if (activeId === id) {
+      router.push('/notifications/templates')
+    }
+  }
+
+  const handleSelectTemplate = (id: number) => {
+    router.push(`/notifications/templates/${id}`)
+  }
+
+  const observer = useRef<IntersectionObserver | null>(null)
+  const lastTemplateElementRef = useCallback(
+    (node: HTMLDivElement) => {
+      if (isFetching) return
+      if (observer.current) observer.current.disconnect()
+      observer.current = new IntersectionObserver(entries => {
+        if (entries[0]?.isIntersecting && templates?.hasNext) {
+          setCursor(templates.cursor ?? undefined)
+        }
+      })
+      if (node) observer.current.observe(node)
+    },
+    [isFetching, templates],
+  )
+
+  return (
+    <div className="flex h-full w-full min-h-[calc(100vh-8rem)] border rounded-xl overflow-hidden bg-background">
+      <aside className="w-64 shrink-0 border-r flex flex-col overflow-auto max-h-screen">
+        <div className="p-3 border-b">
+          <Button
+            type="button"
+            onClick={handleNew}
+            variant="default"
+            className="w-full"
+          >
+            + New
+          </Button>
+        </div>
+        <div className="flex-1 overflow-y-auto p-2 space-y-2">
+          {isLoading && <SidebarSkeleton />}
+          {error && (
+            <p className="p-3 text-sm text-destructive">
+              Error loading templates
+            </p>
+          )}
+          {templates?.data?.map((t: MessageTemplate, index) => {
+            const isLast = templates.data.length === index + 1
+            const item = (
+              <SidebarItem
+                key={t.id}
+                template={t}
+                active={activeId === t.id}
+                onSelect={() => handleSelectTemplate(t.id)}
+                onDelete={() => handleDelete(t.id)}
+              />
+            )
+            if (isLast) {
+              return (
+                <div
+                  ref={lastTemplateElementRef}
+                  key={t.id}
+                >
+                  {item}
+                </div>
+              )
+            }
+            return item
+          })}
+          {isFetching && !isLoading && <SidebarSkeleton numberOfRows={1} />}
+          {!isLoading && !error && templates?.data?.length === 0 && (
+            <p className="p-4 text-sm text-muted-foreground text-center">
+              No templates yet.
+            </p>
+          )}
+        </div>
+      </aside>
+      <main className="flex-1 overflow-auto">{children}</main>
+    </div>
+  )
+}
+
     
