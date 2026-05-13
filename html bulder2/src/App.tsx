@@ -211,3 +211,49 @@ public class TemplateControllerV1 {
         return ResponseEntity.noContent().build();
     }
 }
+/******service*************/
+package com.cibeg.digital.notifications.api.service.campaign;
+
+import com.cibeg.digital.notifications.api.dto.campaign.CursorPage;
+import com.cibeg.digital.notifications.api.dto.campaign.CursorPaginationRequest;
+import com.cibeg.digital.notifications.api.dto.campaign.TemplateRequestDto;
+import com.cibeg.digital.notifications.api.dto.campaign.TemplateResponseDto;
+
+public interface TemplateService {
+
+    TemplateResponseDto create(TemplateRequestDto request);
+
+    TemplateResponseDto getById(Long id);
+
+    CursorPage<TemplateResponseDto> getAll(CursorPaginationRequest request);
+
+    TemplateResponseDto update(Long id, TemplateRequestDto request);
+
+    void delete(Long id);
+
+    void validateSchema(String schema);
+}
+
+
+
+/****************************/
+package com.cibeg.digital.notifications.api.mapper;
+
+import com.cibeg.digital.notifications.api.dto.InboxMessageDetailDto;
+import com.cibeg.digital.notifications.api.dto.InboxMessageListItemDto;
+import com.cibeg.digital.notifications.sms.dispatcher.central.repository.model.InboxMessage;
+import org.mapstruct.*;
+
+@Mapper(
+        componentModel = MappingConstants.ComponentModel.SPRING,
+        nullValueCheckStrategy = NullValueCheckStrategy.ALWAYS,
+        collectionMappingStrategy = CollectionMappingStrategy.TARGET_IMMUTABLE)
+public interface InboxMessageMapper {
+
+    @Mapping(target = "read", source = "read")
+    InboxMessageListItemDto toListItem(InboxMessage entity);
+
+    @Mapping(target = "read", source = "entity.read")
+    @Mapping(target = "totalNumOfUnread", source = "totalNumOfUnread")
+    InboxMessageDetailDto toDetail(InboxMessage entity, long totalNumOfUnread);
+}
