@@ -13,59 +13,139 @@ export default App
 
 
 
-Object { id: 1, name: "temp1", description: "ecec", schemaType: null, createdAt: "2026-05-13T11:56:43.64557", updatedAt: "2026-05-13T12:57:27.338328", createdBy: "campaign-inputter", updatedBy: "campaign-inputter", contents: (1) […], smsTemplates: (1) […], … }
-​
-contents: Array [ {…} ]
-​
-createdAt: "2026-05-13T11:56:43.64557"
-​
-createdBy: "campaign-inputter"
-​
-description: "ecec"
-​
-id: 1
-​
-inboxTemplates: Array [ {…} ]
-​
-​
-0: Object { languageId: 1, languageCode: "ar", subject: "asa", … }
-​
-​
-​
-languageCode: "ar"
-​
-​
-​
-languageId: 1
-​
-​
-​
-subject: "asa"
-​
-​
-​
-text: "wdwed"
-​
-​
-​
-<prototype>: Object { … }
-​
-​
-length: 1
-​
-​
-<prototype>: Array []
-​
-name: "temp1"
-​
-pushTemplates: Array [ {…} ]
-​
-schemaType: null
-​
-smsTemplates: Array [ {…} ]
-​
-updatedAt: "2026-05-13T12:57:27.338328"
-​
-updatedBy: "campaign-inputter"
-​
-<prototype>: Object { … }
+
+package com.cibeg.digital.notifications.api.dto.campaign;
+
+import com.cibeg.digital.notifications.sms.dispatcher.central.repository.model.TemplateSchemaType;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+import java.util.List;
+import lombok.*;
+
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
+public class TemplateRequestDto {
+
+    @NotBlank private String name;
+
+    private String description;
+
+    private TemplateSchemaType schemaType;
+
+    private List<TemplateContentRequestDto> contents;
+
+    private List<SmsTemplateRequestDto> smsTemplates;
+
+    private List<PushTemplateRequestDto> pushTemplates;
+
+    private List<InboxTemplateRequestDto> inboxTemplates;
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class TemplateContentRequestDto {
+        @NotNull private Long languageId;
+        private String title;
+        @NotBlank private String text;
+    }
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class SmsTemplateRequestDto {
+        @NotNull private Long languageId;
+        @NotBlank private String text;
+    }
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class PushTemplateRequestDto {
+        @NotNull private Long languageId;
+        @NotBlank private String title;
+        @NotBlank private String text;
+    }
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class InboxTemplateRequestDto {
+        @NotNull private Long languageId;
+        @NotBlank private String subject;
+        @NotBlank private String text;
+    }
+}
+//////////////////////////***************/
+package com.cibeg.digital.notifications.api.dto.campaign;
+
+import com.cibeg.digital.notifications.sms.dispatcher.central.repository.model.TemplateSchemaType;
+import com.fasterxml.jackson.annotation.JsonInclude;
+import java.time.LocalDateTime;
+import java.util.List;
+import lombok.*;
+
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
+@JsonInclude(JsonInclude.Include.ALWAYS)
+public class TemplateResponseDto {
+
+    private Long id;
+    private String name;
+    private String description;
+    private TemplateSchemaType schemaType;
+    private LocalDateTime createdAt;
+    private LocalDateTime updatedAt;
+    private String createdBy;
+    private String updatedBy;
+    private List<TemplateContentResponseDto> contents;
+    private List<SmsTemplateResponseDto> smsTemplates;
+    private List<PushTemplateResponseDto> pushTemplates;
+    private List<InboxTemplateResponseDto> inboxTemplates;
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Builder
+    public static class TemplateContentResponseDto {
+        private Long languageId;
+        private String languageCode;
+        private String title;
+        private String text;
+    }
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Builder
+    public static class SmsTemplateResponseDto {
+        private Long languageId;
+        private String languageCode;
+        private String text;
+    }
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Builder
+    public static class PushTemplateResponseDto {
+        private Long languageId;
+        private String languageCode;
+        private String title;
+        private String text;
+    }
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Builder
+    public static class InboxTemplateResponseDto {
+        private Long languageId;
+        private String languageCode;
+        private String subject;
+        private String text;
+    }
+}
