@@ -1,0 +1,543 @@
+package com.cibeg.digital.notifications.api.service.campaign;
+
+import static com.cibeg.digital.notifications.api.dto.campaign.CursorDto.applyCursorCondition;
+import static com.cibeg.digital.notifications.api.dto.campaign.CursorDto.encodeCursor;
+import static com.cibeg.digital.notifications.sms.dispatcher.central.tables.Campaigns.CAMPAIGNS;
+import static com.cibeg.digital.notifications.sms.dispatcher.central.tables.InboxTemplates.INBOX_TEMPLATES;
+import static com.cibeg.digital.notifications.sms.dispatcher.central.tables.Languages.LANGUAGES;
+import static com.cibeg.digital.notifications.sms.dispatcher.central.tables.PushTemplates.PUSH_TEMPLATES;
+import static com.cibeg.digital.notifications.sms.dispatcher.central.tables.SmsTemplates.SMS_TEMPLATES;
+import static com.cibeg.digital.notifications.sms.dispatcher.central.tables.TemplateContents.TEMPLATE_CONTENTS;
+import static com.cibeg.digital.notifications.sms.dispatcher.central.tables.Templates.TEMPLATES;
+
+import com.cibeg.digital.notifications.api.dto.campaign.*;
+import com.cibeg.digital.notifications.api.error.CampaignErrors;
+import com.cibeg.digital.notifications.api.mapper.campaign.TemplateMapper;
+import com.cibeg.digital.notifications.sms.dispatcher.central.tables.records.*;
+import com.cibeg.one.api.authorization.model.SecurityUser;
+import com.cibeg.one.api.core.errors.APIFunctionalException;
+import com.github.jknack.handlebars.Handlebars;
+import com.github.jknack.handlebars.TagType;
+import com.github.jknack.handlebars.Template;
+import jakarta.inject.Provider;
+import java.math.BigInteger;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
+import lombok.RequiredArgsConstructor;
+import lombok.SneakyThrows;
+import lombok.extern.slf4j.Slf4j;
+import org.everit.json.schema.Schema;
+import org.jooq.Condition;
+import org.jooq.DSLContext;
+import org.jooq.impl.DSL;
+import org.json.JSONObject;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+@Service
+@RequiredArgsConstructor
+@Slf4j
+public class TemplateServiceImpl implements TemplateService {
+
+    private static final String TEXT_FIELD_SUFFIX = "].text";
+
+    private final DSLContext centralDslContext;
+    private final Provider<SecurityUser> securityUser;
+    private final TemplateMapper templateMapper;
+    private final Schema schema;
+
+    @Override
+    @Transactional
+    public TemplateResponseDto create(TemplateRequestDto request) {
+        String userId = securityUser.get().userId().toString();
+
+        TemplatesRecord templatesRecord = centralDslContext.newRecord(TEMPLATES);
+        templatesRecord.setName(request.getName());
+        templatesRecord.setDescription(request.getDescription());
+        templatesRecord.setSchemaType(request.getSchemaType());
+        templatesRecord.setCreatedBy(userId);
+        templatesRecord.store();
+
+        BigInteger templateId = templatesRecord.getId();
+        insertChildren(templateId, request);
+
+        return fetchTemplateResponse(templateId);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public TemplateResponseDto getById(Long id) {
+        BigInteger templateId = BigInteger.valueOf(id);
+        if (!centralDslContext.fetchExists(TEMPLATES, TEMPLATES.ID.eq(templateId))) {
+            throw new APIFunctionalException(CampaignErrors.TEMPLATE_NOT_FOUND);
+        }
+        return fetchTemplateResponse(templateId);
+    }
+
+    @Override
+    @Transactional
+    public TemplateResponseDto update(Long id, TemplateRequestDto request) {
+        BigInteger templateId = BigInteger.valueOf(id);
+
+        TemplatesRecord templatesRecord =
+                centralDslContext
+                        .selectFrom(TEMPLATES)
+                        .where(TEMPLATES.ID.eq(templateId))
+                        .fetchOptional()
+                        .orElseThrow(
+                                () ->
+                                        new APIFunctionalException(
+                                                CampaignErrors.TEMPLATE_NOT_FOUND));
+
+        String userId = securityUser.get().userId().toString();
+        templatesRecord.setName(request.getName());
+        templatesRecord.setDescription(request.getDescription());
+        templatesRecord.setSchemaType(request.getSchemaType());
+        templatesRecord.setUpdatedBy(userId);
+        templatesRecord.setUpdatedAt(LocalDateTime.now());
+        templatesRecord.store();
+
+        centralDslContext
+                .batch(
+                        centralDslContext
+                                .deleteFrom(SMS_TEMPLATES)
+                                .where(SMS_TEMPLATES.TEMPLATE_ID.eq(templateId)),
+                        centralDslContext
+                                .deleteFrom(PUSH_TEMPLATES)
+                                .where(PUSH_TEMPLATES.TEMPLATE_ID.eq(templateId)),
+                        centralDslContext
+                                .deleteFrom(INBOX_TEMPLATES)
+                                .where(INBOX_TEMPLATES.TEMPLATE_ID.eq(templateId)),
+                        centralDslContext
+                                .deleteFrom(TEMPLATE_CONTENTS)
+                                .where(TEMPLATE_CONTENTS.TEMPLATE_ID.eq(templateId)))
+                .execute();
+
+        insertChildren(templateId, request);
+
+        return fetchTemplateResponse(templateId);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public CursorPage<TemplateResponseDto> getAll(CursorPaginationRequest request) {
+
+        Condition condition = DSL.noCondition();
+        if (request.getCursor() != null && !request.getCursor().isBlank()) {
+            condition =
+                    condition.and(
+                            applyCursorCondition(
+                                    CursorDto.decodeCursor(request.getCursor()),
+                                    TEMPLATES.CREATED_AT,
+                                    TEMPLATES.ID));
+        }
+
+        List<TemplatesRecord> records =
+                centralDslContext
+                        .selectFrom(TEMPLATES)
+                        .where(condition)
+                        .orderBy(TEMPLATES.CREATED_AT.desc(), TEMPLATES.ID.desc())
+                        .limit(request.getSize() + 1)
+                        .fetch();
+
+        boolean hasNextPage = records.size() > request.getSize();
+        List<TemplatesRecord> pageRecords =
+                hasNextPage ? records.subList(0, request.getSize()) : records;
+
+        List<BigInteger> templateIds = pageRecords.stream().map(TemplatesRecord::getId).toList();
+
+        Map<BigInteger, List<TemplateResponseDto.TemplateContentResponseDto>> contentsMap =
+                fetchContentsBatch(templateIds);
+        Map<BigInteger, List<TemplateResponseDto.SmsTemplateResponseDto>> smsMap =
+                fetchSmsBatch(templateIds);
+        Map<BigInteger, List<TemplateResponseDto.PushTemplateResponseDto>> pushMap =
+                fetchPushBatch(templateIds);
+        Map<BigInteger, List<TemplateResponseDto.InboxTemplateResponseDto>> inboxMap =
+                fetchInboxBatch(templateIds);
+
+        List<TemplateResponseDto> content =
+                pageRecords.stream()
+                        .map(
+                                r -> {
+                                    BigInteger id = r.getId();
+                                    TemplateResponseDto dto = templateMapper.toResponse(r);
+                                    dto.setContents(contentsMap.getOrDefault(id, List.of()));
+                                    dto.setSmsTemplates(smsMap.getOrDefault(id, List.of()));
+                                    dto.setPushTemplates(pushMap.getOrDefault(id, List.of()));
+                                    dto.setInboxTemplates(inboxMap.getOrDefault(id, List.of()));
+                                    return dto;
+                                })
+                        .toList();
+
+        String nextCursor =
+                hasNextPage
+                        ? encodeCursor(content.getLast().getCreatedAt(), content.getLast().getId())
+                        : null;
+
+        return CursorPage.<TemplateResponseDto>builder()
+                .data(content)
+                .nextCursor(nextCursor)
+                .hasNextPage(hasNextPage)
+                .build();
+    }
+
+    @Override
+    @Transactional
+    public void delete(Long id) {
+        BigInteger templateId = BigInteger.valueOf(id);
+
+        if (centralDslContext.fetchExists(CAMPAIGNS, CAMPAIGNS.TEMPLATE_ID.eq(templateId))) {
+            throw new APIFunctionalException(CampaignErrors.TEMPLATE_IN_USE);
+        }
+
+        int deleted =
+                centralDslContext
+                        .deleteFrom(TEMPLATES)
+                        .where(TEMPLATES.ID.eq(templateId))
+                        .execute();
+        if (deleted == 0) {
+            throw new APIFunctionalException(CampaignErrors.TEMPLATE_NOT_FOUND);
+        }
+    }
+
+    @Override
+    public void validateSchema(String schema) {
+        List<String> keys = extractKeys(schema);
+        JSONObject json = buildJsonFromKeys(keys);
+        validateJson(json);
+    }
+
+    @SneakyThrows
+    public static List<String> extractKeys(String templateText) {
+        Handlebars handlebars = new Handlebars();
+        Template template = handlebars.compileInline(templateText);
+        return template.collect(TagType.VAR);
+    }
+
+    @SneakyThrows
+    public static JSONObject buildJsonFromKeys(List<String> keys) {
+        JSONObject root = new JSONObject();
+
+        for (String key : keys) {
+            String[] parts = key.split("\\.");
+            JSONObject current = root;
+
+            for (int i = 0; i < parts.length - 1; i++) {
+                if (!current.has(parts[i])) {
+                    current.put(parts[i], new JSONObject());
+                }
+                current = current.getJSONObject(parts[i]);
+            }
+            current.put(parts[parts.length - 1], "value");
+        }
+
+        return root;
+    }
+
+    public void validateJson(JSONObject object) {
+        schema.validate(object);
+    }
+
+    private void insertChildren(BigInteger templateId, TemplateRequestDto request) {
+        validateAllTemplateContents(request);
+
+        if (request.getContents() != null) {
+            List<TemplateContentsRecord> records = new ArrayList<>();
+            for (TemplateRequestDto.TemplateContentRequestDto c : request.getContents()) {
+                TemplateContentsRecord r = centralDslContext.newRecord(TEMPLATE_CONTENTS);
+                r.setTemplateId(templateId);
+                r.setLanguageId(BigInteger.valueOf(c.getLanguageId()));
+                r.setTitle(c.getTitle());
+                r.setText(c.getText());
+                records.add(r);
+            }
+            centralDslContext.batchInsert(records).execute();
+        }
+
+        if (request.getSmsTemplates() != null) {
+            List<SmsTemplatesRecord> records = new ArrayList<>();
+            for (TemplateRequestDto.SmsTemplateRequestDto s : request.getSmsTemplates()) {
+                SmsTemplatesRecord r = centralDslContext.newRecord(SMS_TEMPLATES);
+                r.setTemplateId(templateId);
+                r.setLanguageId(BigInteger.valueOf(s.getLanguageId()));
+                r.setText(s.getText());
+                records.add(r);
+            }
+            centralDslContext.batchInsert(records).execute();
+        }
+
+        if (request.getPushTemplates() != null) {
+            List<PushTemplatesRecord> records = new ArrayList<>();
+            for (TemplateRequestDto.PushTemplateRequestDto p : request.getPushTemplates()) {
+                PushTemplatesRecord r = centralDslContext.newRecord(PUSH_TEMPLATES);
+                r.setTemplateId(templateId);
+                r.setLanguageId(BigInteger.valueOf(p.getLanguageId()));
+                r.setTitle(p.getTitle());
+                r.setText(p.getText());
+                records.add(r);
+            }
+            centralDslContext.batchInsert(records).execute();
+        }
+
+        if (request.getInboxTemplates() != null) {
+            List<InboxTemplatesRecord> records = new ArrayList<>();
+            for (TemplateRequestDto.InboxTemplateRequestDto i : request.getInboxTemplates()) {
+                InboxTemplatesRecord r = centralDslContext.newRecord(INBOX_TEMPLATES);
+                r.setTemplateId(templateId);
+                r.setLanguageId(BigInteger.valueOf(i.getLanguageId()));
+                r.setSubject(i.getSubject());
+                r.setText(i.getText());
+                records.add(r);
+            }
+            centralDslContext.batchInsert(records).execute();
+        }
+    }
+
+    private void validateAllTemplateContents(TemplateRequestDto request) {
+        List<String> validationErrors = new ArrayList<>();
+
+        validateContents(request.getContents(), validationErrors);
+        validateSmsTemplates(request.getSmsTemplates(), validationErrors);
+        validatePushTemplates(request.getPushTemplates(), validationErrors);
+        validateInboxTemplates(request.getInboxTemplates(), validationErrors);
+
+        throwIfValidationErrors(validationErrors);
+    }
+
+    private void validateContents(
+            List<TemplateRequestDto.TemplateContentRequestDto> contents,
+            List<String> validationErrors) {
+        if (contents == null) {
+            return;
+        }
+        for (int i = 0; i < contents.size(); i++) {
+            TemplateRequestDto.TemplateContentRequestDto content = contents.get(i);
+            if (content.getTitle() != null) {
+                validateField(content.getTitle(), "Contents[" + i + "].title", validationErrors);
+            }
+            if (content.getText() != null) {
+                validateField(
+                        content.getText(), "Contents[" + i + TEXT_FIELD_SUFFIX, validationErrors);
+            }
+        }
+    }
+
+    private void validateSmsTemplates(
+            List<TemplateRequestDto.SmsTemplateRequestDto> smsTemplates,
+            List<String> validationErrors) {
+        if (smsTemplates == null) {
+            return;
+        }
+        for (int i = 0; i < smsTemplates.size(); i++) {
+            TemplateRequestDto.SmsTemplateRequestDto sms = smsTemplates.get(i);
+            if (sms.getText() != null) {
+                validateField(
+                        sms.getText(), "SmsTemplates[" + i + TEXT_FIELD_SUFFIX, validationErrors);
+            }
+        }
+    }
+
+    private void validatePushTemplates(
+            List<TemplateRequestDto.PushTemplateRequestDto> pushTemplates,
+            List<String> validationErrors) {
+        if (pushTemplates == null) {
+            return;
+        }
+        for (int i = 0; i < pushTemplates.size(); i++) {
+            TemplateRequestDto.PushTemplateRequestDto push = pushTemplates.get(i);
+            if (push.getTitle() != null) {
+                validateField(push.getTitle(), "PushTemplates[" + i + "].title", validationErrors);
+            }
+            if (push.getText() != null) {
+                validateField(
+                        push.getText(), "PushTemplates[" + i + TEXT_FIELD_SUFFIX, validationErrors);
+            }
+        }
+    }
+
+    private void validateInboxTemplates(
+            List<TemplateRequestDto.InboxTemplateRequestDto> inboxTemplates,
+            List<String> validationErrors) {
+        if (inboxTemplates == null) {
+            return;
+        }
+        for (int i = 0; i < inboxTemplates.size(); i++) {
+            TemplateRequestDto.InboxTemplateRequestDto inbox = inboxTemplates.get(i);
+            if (inbox.getSubject() != null) {
+                validateField(
+                        inbox.getSubject(), "InboxTemplates[" + i + "].subject", validationErrors);
+            }
+            if (inbox.getText() != null) {
+                validateField(
+                        inbox.getText(),
+                        "InboxTemplates[" + i + TEXT_FIELD_SUFFIX,
+                        validationErrors);
+            }
+        }
+    }
+
+    private void throwIfValidationErrors(List<String> validationErrors) {
+        if (!validationErrors.isEmpty()) {
+            String errorMessage = String.join("; ", validationErrors);
+            log.error("Template validation failed: {}", errorMessage);
+            throw new APIFunctionalException(CampaignErrors.REQUEST_SCHEMA_MISMATCH);
+        }
+    }
+
+    private void validateField(String fieldValue, String fieldName, List<String> errors) {
+        try {
+            validateSchema(fieldValue);
+        } catch (Exception e) {
+            errors.add(fieldName + ": " + e.getMessage());
+        }
+    }
+
+    private TemplateResponseDto fetchTemplateResponse(BigInteger templateId) {
+        TemplatesRecord templatesRecord =
+                centralDslContext
+                        .selectFrom(TEMPLATES)
+                        .where(TEMPLATES.ID.eq(templateId))
+                        .fetchOptional()
+                        .orElseThrow(
+                                () ->
+                                        new APIFunctionalException(
+                                                CampaignErrors.TEMPLATE_NOT_FOUND));
+
+        List<BigInteger> ids = List.of(templateId);
+
+        TemplateResponseDto dto = templateMapper.toResponse(templatesRecord);
+        dto.setContents(fetchContentsBatch(ids).getOrDefault(templateId, List.of()));
+        dto.setSmsTemplates(fetchSmsBatch(ids).getOrDefault(templateId, List.of()));
+        dto.setPushTemplates(fetchPushBatch(ids).getOrDefault(templateId, List.of()));
+        dto.setInboxTemplates(fetchInboxBatch(ids).getOrDefault(templateId, List.of()));
+        return dto;
+    }
+
+    private Map<BigInteger, List<TemplateResponseDto.TemplateContentResponseDto>>
+            fetchContentsBatch(List<BigInteger> templateIds) {
+        return centralDslContext
+                .select(
+                        TEMPLATE_CONTENTS.TEMPLATE_ID,
+                        TEMPLATE_CONTENTS.LANGUAGE_ID,
+                        TEMPLATE_CONTENTS.TITLE,
+                        TEMPLATE_CONTENTS.TEXT,
+                        LANGUAGES.CODE)
+                .from(TEMPLATE_CONTENTS)
+                .leftJoin(LANGUAGES)
+                .on(TEMPLATE_CONTENTS.LANGUAGE_ID.eq(LANGUAGES.ID))
+                .where(TEMPLATE_CONTENTS.TEMPLATE_ID.in(templateIds))
+                .fetch()
+                .stream()
+                .collect(
+                        Collectors.groupingBy(
+                                r -> r.get(TEMPLATE_CONTENTS.TEMPLATE_ID),
+                                Collectors.mapping(
+                                        r ->
+                                                TemplateResponseDto.TemplateContentResponseDto
+                                                        .builder()
+                                                        .languageId(
+                                                                r.get(TEMPLATE_CONTENTS.LANGUAGE_ID)
+                                                                        .longValue())
+                                                        .languageCode(r.get(LANGUAGES.CODE))
+                                                        .title(r.get(TEMPLATE_CONTENTS.TITLE))
+                                                        .text(r.get(TEMPLATE_CONTENTS.TEXT))
+                                                        .build(),
+                                        Collectors.toList())));
+    }
+
+    private Map<BigInteger, List<TemplateResponseDto.SmsTemplateResponseDto>> fetchSmsBatch(
+            List<BigInteger> templateIds) {
+        return centralDslContext
+                .select(
+                        SMS_TEMPLATES.TEMPLATE_ID,
+                        SMS_TEMPLATES.LANGUAGE_ID,
+                        SMS_TEMPLATES.TEXT,
+                        LANGUAGES.CODE)
+                .from(SMS_TEMPLATES)
+                .leftJoin(LANGUAGES)
+                .on(SMS_TEMPLATES.LANGUAGE_ID.eq(LANGUAGES.ID))
+                .where(SMS_TEMPLATES.TEMPLATE_ID.in(templateIds))
+                .fetch()
+                .stream()
+                .collect(
+                        Collectors.groupingBy(
+                                r -> r.get(SMS_TEMPLATES.TEMPLATE_ID),
+                                Collectors.mapping(
+                                        r ->
+                                                TemplateResponseDto.SmsTemplateResponseDto.builder()
+                                                        .languageId(
+                                                                r.get(SMS_TEMPLATES.LANGUAGE_ID)
+                                                                        .longValue())
+                                                        .languageCode(r.get(LANGUAGES.CODE))
+                                                        .text(r.get(SMS_TEMPLATES.TEXT))
+                                                        .build(),
+                                        Collectors.toList())));
+    }
+
+    private Map<BigInteger, List<TemplateResponseDto.PushTemplateResponseDto>> fetchPushBatch(
+            List<BigInteger> templateIds) {
+        return centralDslContext
+                .select(
+                        PUSH_TEMPLATES.TEMPLATE_ID,
+                        PUSH_TEMPLATES.LANGUAGE_ID,
+                        PUSH_TEMPLATES.TITLE,
+                        PUSH_TEMPLATES.TEXT,
+                        LANGUAGES.CODE)
+                .from(PUSH_TEMPLATES)
+                .leftJoin(LANGUAGES)
+                .on(PUSH_TEMPLATES.LANGUAGE_ID.eq(LANGUAGES.ID))
+                .where(PUSH_TEMPLATES.TEMPLATE_ID.in(templateIds))
+                .fetch()
+                .stream()
+                .collect(
+                        Collectors.groupingBy(
+                                r -> r.get(PUSH_TEMPLATES.TEMPLATE_ID),
+                                Collectors.mapping(
+                                        r ->
+                                                TemplateResponseDto.PushTemplateResponseDto
+                                                        .builder()
+                                                        .languageId(
+                                                                r.get(PUSH_TEMPLATES.LANGUAGE_ID)
+                                                                        .longValue())
+                                                        .languageCode(r.get(LANGUAGES.CODE))
+                                                        .title(r.get(PUSH_TEMPLATES.TITLE))
+                                                        .text(r.get(PUSH_TEMPLATES.TEXT))
+                                                        .build(),
+                                        Collectors.toList())));
+    }
+
+    private Map<BigInteger, List<TemplateResponseDto.InboxTemplateResponseDto>> fetchInboxBatch(
+            List<BigInteger> templateIds) {
+        return centralDslContext
+                .select(
+                        INBOX_TEMPLATES.TEMPLATE_ID,
+                        INBOX_TEMPLATES.LANGUAGE_ID,
+                        INBOX_TEMPLATES.SUBJECT,
+                        INBOX_TEMPLATES.TEXT,
+                        LANGUAGES.CODE)
+                .from(INBOX_TEMPLATES)
+                .leftJoin(LANGUAGES)
+                .on(INBOX_TEMPLATES.LANGUAGE_ID.eq(LANGUAGES.ID))
+                .where(INBOX_TEMPLATES.TEMPLATE_ID.in(templateIds))
+                .fetch()
+                .stream()
+                .collect(
+                        Collectors.groupingBy(
+                                r -> r.get(INBOX_TEMPLATES.TEMPLATE_ID),
+                                Collectors.mapping(
+                                        r ->
+                                                TemplateResponseDto.InboxTemplateResponseDto
+                                                        .builder()
+                                                        .languageId(
+                                                                r.get(INBOX_TEMPLATES.LANGUAGE_ID)
+                                                                        .longValue())
+                                                        .languageCode(r.get(LANGUAGES.CODE))
+                                                        .subject(r.get(INBOX_TEMPLATES.SUBJECT))
+                                                        .text(r.get(INBOX_TEMPLATES.TEXT))
+                                                        .build(),
+                                        Collectors.toList())));
+    }
+}
