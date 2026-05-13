@@ -149,3 +149,65 @@ public class TemplateResponseDto {
         private String text;
     }
 }
+/*************************/
+package com.cibeg.digital.notifications.api.controller.campaign;
+
+import com.cibeg.digital.notifications.api.dto.campaign.*;
+import com.cibeg.digital.notifications.api.service.campaign.TemplateService;
+import jakarta.validation.Valid;
+import java.util.List;
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.*;
+
+@RestController
+@RequestMapping("/v1/templates")
+@RequiredArgsConstructor
+public class TemplateControllerV1 {
+
+    private final TemplateService templateService;
+
+    @PreAuthorize("hasAuthority('campaign-inputter')")
+    @PostMapping
+    public ResponseEntity<TemplateResponseDto> create(
+            @Valid @RequestBody TemplateRequestDto request) {
+        TemplateResponseDto created = templateService.create(request);
+        return ResponseEntity.status(HttpStatus.CREATED).body(created);
+    }
+
+    @PreAuthorize("hasAnyAuthority('campaign-inputter', 'campaign-authorizer')")
+    @GetMapping("/{id}")
+    public ResponseEntity<ApiResponse<TemplateResponseDto>> getById(@PathVariable Long id) {
+        TemplateResponseDto found = templateService.getById(id);
+        return ResponseEntity.ok(ApiResponse.<TemplateResponseDto>builder().data(found).build());
+    }
+
+    @PreAuthorize("hasAnyAuthority('campaign-inputter', 'campaign-authorizer')")
+    @GetMapping
+    public ApiCursorResponse<List<TemplateResponseDto>> getAll(
+            @Valid @ModelAttribute CursorPaginationRequest request) {
+        CursorPage<TemplateResponseDto> response = templateService.getAll(request);
+        return ApiCursorResponse.<List<TemplateResponseDto>>builder()
+                .data(response.getData())
+                .cursor(response.getNextCursor())
+                .hasNext(response.isHasNextPage())
+                .build();
+    }
+
+    @PreAuthorize("hasAuthority('campaign-inputter')")
+    @PutMapping("/{id}")
+    public ResponseEntity<TemplateResponseDto> update(
+            @PathVariable Long id, @Valid @RequestBody TemplateRequestDto request) {
+        TemplateResponseDto updated = templateService.update(id, request);
+        return ResponseEntity.ok(updated);
+    }
+
+    @PreAuthorize("hasAuthority('campaign-inputter')")
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> delete(@PathVariable Long id) {
+        templateService.delete(id);
+        return ResponseEntity.noContent().build();
+    }
+}
