@@ -51,3 +51,146 @@ body {
 .gjs-one-bg {
     background-color: #151827 !important;
 }
+/***************templateSlice****/
+import { baseApi } from '@cib/redux-store'
+
+import { CAMPAIGN_BASE } from './constants'
+import {
+  InboxTemplateResponseDto,
+  PushTemplateResponseDto,
+  SmsTemplateResponseDto,
+  TemplateContentResponseDto,
+  TemplateRequestDto,
+  TemplateSchemaType,
+} from './types'
+
+export interface MessageTemplate {
+  id: number
+  name: string
+  description?: string
+  schemaType?: TemplateSchemaType
+  contents?: TemplateContentResponseDto[]
+  smsTemplates?: SmsTemplateResponseDto[]
+  pushTemplates?: PushTemplateResponseDto[]
+  inboxTemplates?: InboxTemplateResponseDto[]
+  createdAt: string
+  updatedAt: string
+  createdBy?: string
+  updatedBy?: string
+}
+
+export type ApiResponse<T> = {
+  data: T
+}
+
+export type CursorApiResponse<T> = {
+  data: T[]
+  hasNext: boolean
+  cursor: string | null
+}
+
+export type MessageTemplateCreateDto = TemplateRequestDto
+
+export type MessageTemplateUpdateDto = TemplateRequestDto
+
+const BASE_URL = `${CAMPAIGN_BASE}/notifications/v1/templates`
+
+export const templatesApi = baseApi
+  .enhanceEndpoints({ addTagTypes: ['Template'] })
+  .injectEndpoints({
+    endpoints: builder => ({
+      getMessageTemplates: builder.query<
+        CursorApiResponse<MessageTemplate>,
+        { search?: string; cursor?: string; size?: number }
+      >({
+        query: ({ search, cursor, size }) => ({
+          url: BASE_URL,
+          method: 'GET',
+          params: { search, cursor, size },
+        }),
+        serializeQueryArgs: ({ endpointName }) => {
+          return endpointName
+        },
+        forceRefetch({ currentArg, previousArg }) {
+          return currentArg !== previousArg
+        },
+        merge: (currentCache, newItems, { arg }) => {
+          if (!arg.cursor) {
+            currentCache.data = newItems.data
+          } else {
+            currentCache.data.push(...newItems.data)
+          }
+          currentCache.cursor = newItems.cursor
+          currentCache.hasNext = newItems.hasNext
+        },
+        providesTags: result =>
+          result?.data
+            ? [
+                ...result.data.map(t => ({
+                  type: 'Template' as const,
+                  id: t.id,
+                })),
+                { type: 'Template', id: 'LIST' },
+              ]
+            : [{ type: 'Template', id: 'LIST' }],
+      }),
+
+      getMessageTemplateById: builder.query<
+        ApiResponse<MessageTemplate>,
+        number
+      >({
+        query: id => ({
+          url: `${BASE_URL}/${id}`,
+          method: 'GET',
+        }),
+        providesTags: (_r, _e, id) => [{ type: 'Template', id }],
+      }),
+
+      createMessageTemplate: builder.mutation<
+        MessageTemplate,
+        MessageTemplateCreateDto
+      >({
+        query: body => ({
+          url: BASE_URL,
+          method: 'POST',
+          body,
+        }),
+        invalidatesTags: [{ type: 'Template', id: 'LIST' }],
+      }),
+
+      updateMessageTemplate: builder.mutation<
+        MessageTemplate,
+        { id: number; dto: MessageTemplateUpdateDto }
+      >({
+        query: ({ id, dto }) => ({
+          url: `${BASE_URL}/${id}`,
+          method: 'PUT',
+          body: dto,
+        }),
+        invalidatesTags: (_r, _e, { id }) => [
+          { type: 'Template', id },
+          { type: 'Template', id: 'LIST' },
+        ],
+      }),
+
+      deleteMessageTemplate: builder.mutation<void, number>({
+        query: id => ({
+          url: `${BASE_URL}/${id}`,
+          method: 'DELETE',
+        }),
+        invalidatesTags: (_r, _e, id) => [
+          { type: 'Template', id },
+          { type: 'Template', id: 'LIST' },
+        ],
+      }),
+    }),
+    overrideExisting: false,
+  })
+
+export const {
+  useGetMessageTemplatesQuery,
+  useGetMessageTemplateByIdQuery,
+  useCreateMessageTemplateMutation,
+  useUpdateMessageTemplateMutation,
+  useDeleteMessageTemplateMutation,
+} = templatesApi
