@@ -46,3 +46,39 @@ export default function TemplateBuilderRoute() {
     />
   );
 }
+
+/*********************new template************/
+'use client'
+
+import { toast } from '@cib/design-system-components'
+import { useRouter } from 'next/navigation'
+
+import {
+  MessageTemplate,
+  useGetMessageTemplatesQuery,
+} from '../state/templatesSlice'
+import { TemplateEditor } from './components/Templates/TemplateEditor'
+
+export function NewTemplatePage() {
+  const router = useRouter()
+
+  const handleSaved = (_saved: MessageTemplate) => {
+    toast.success('Template created successfully.')
+    router.push('/notifications/templates')
+  }
+
+  const handleCancel = () => {
+    router.push('/notifications/templates')
+  }
+
+  const { refetch } = useGetMessageTemplatesQuery({})
+
+  return (
+    <TemplateEditor
+      onSaved={handleSaved}
+      onCancel={handleCancel}
+      refetch={refetch}
+    />
+  )
+}
+
