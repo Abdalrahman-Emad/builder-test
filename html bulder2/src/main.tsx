@@ -355,3 +355,57 @@ export type AppStore = typeof store
 export type AppDispatch = AppStore['dispatch']
 export type RootState = ReturnType<AppStore['getState']>
 export type DynamicReducer = typeof reducerManager
+//////////////////////////////////////***************new templates *****************/
+'use client'
+
+import { toast } from '@cib/design-system-components'
+import { useRouter } from 'next/navigation'
+import { useEffect, useRef, useState } from 'react'
+import { useDispatch, useSelector } from 'react-redux'
+import { reducerManager } from '../state/store'
+import builderResultReducer, { clearBuilderResult } from '../state/builderSlice'
+import type { RootState } from '../state/store'
+import {
+  MessageTemplate,
+  useGetMessageTemplatesQuery,
+} from '../state/templatesSlice'
+import { TemplateEditor } from './components/Templates/TemplateEditor'
+
+// Register once — safe to call multiple times, reducerManager guards duplicates
+reducerManager.add('builderResult', builderResultReducer)
+
+export function NewTemplatePage() {
+  const router = useRouter()
+  const dispatch = useDispatch()
+  const builderResult = useSelector(
+    (s: RootState & { builderResult: { html: string | null; languageId: number | null } }) =>
+      s.builderResult
+  )
+  const [pendingHtml, setPendingHtml] = useState<string | undefined>()
+
+  useEffect(() => {
+    if (!builderResult?.html) return
+    setPendingHtml(builderResult.html)
+    dispatch(clearBuilderResult())
+  }, [builderResult?.html, dispatch])
+
+  const handleSaved = (_saved: MessageTemplate) => {
+    toast.success('Template created successfully.')
+    router.push('/notifications/templates')
+  }
+
+  const handleCancel = () => {
+    router.push('/notifications/templates')
+  }
+
+  const { refetch } = useGetMessageTemplatesQuery({})
+
+  return (
+    <TemplateEditor
+      onSaved={handleSaved}
+      onCancel={handleCancel}
+      refetch={refetch}
+      html={pendingHtml}
+    />
+  )
+}
