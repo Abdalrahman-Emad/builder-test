@@ -8,3 +8,275 @@ createRoot(document.getElementById('root')!).render(
     <App />
   </StrictMode>,
 )
+/*************api slice ********************/
+import { baseApi } from '@cib/redux-store'
+
+interface Service {
+  id: number
+  batchServiceName: string
+}
+
+interface GetServicesResponse {
+  success: boolean
+  timestamp: string
+  statusCode: number
+  value: Service[]
+}
+
+interface UploadFileRequest {
+  file: FormData
+  serviceId: string
+  valueDate: string
+}
+
+export interface BatchTransaction {
+  accountNumber: string
+  currency: string
+  branch: string
+  debit: string
+  credit: string
+  narrative: string
+  valueDate: string
+}
+
+interface BatchUploadValue {
+  id: string
+  totalDebitAmount: string
+  totalCreditAmount: string
+  transactions: BatchTransaction[]
+}
+
+interface UploadResponse {
+  success: boolean
+  timestamp: string
+  statusCode: number
+  value: BatchUploadValue
+}
+
+interface SubmitBatchRequest {
+  batchId: string
+}
+
+interface SubmitBatchResponse {
+  success: boolean
+  timestamp: string
+  statusCode: number
+  value: string
+  message?: string
+  path?: string
+  errorCode?: string
+}
+
+interface CancelBatchRequest {
+  batchId: string
+}
+
+interface CancelBatchResponse {
+  success: boolean
+  timestamp: string
+  statusCode: number
+  value: string
+}
+
+export interface StpFile {
+  batchId: string
+  seqId: number
+  fileName: string
+  uploadUser: string
+  uploadDate: string
+  totalTransactions: number
+  batchStatus: 'PENDING' | 'APPROVED' | 'REJECTED'
+  updatedBy?: string
+  updatedDate?: string
+}
+
+export interface FileTransaction {
+  accountNumber: string
+  currency: string
+  branch: string
+  debit: string
+  credit: string
+  narrative: string
+  valueDate: string
+}
+
+interface PageableResponse {
+  pageNumber: number
+  pageSize: number
+  sort: {
+    empty: boolean
+    unsorted: boolean
+    sorted: boolean
+  }
+  offset: number
+  unpaged: boolean
+  paged: boolean
+}
+
+interface StpFilesResponse {
+  success: boolean
+  timestamp: string
+  statusCode: number
+  value: {
+    content: StpFile[]
+    pageable: PageableResponse
+    totalElements: number
+    totalPages: number
+    last: boolean
+  }
+}
+
+interface StpFileDetailsResponse {
+  success: boolean
+  timestamp: string
+  statusCode: number
+  value: FileTransaction[]
+}
+
+interface ApproveFileRequest {
+  batchId: string
+  rejectionReason?: string
+}
+
+interface RejectFileRequest {
+  batchId: string
+  rejectionReason: string
+}
+
+interface FileActionResponse {
+  success: boolean
+  timestamp: string
+  statusCode: number
+  value: string
+}
+
+export const stpApi = baseApi.injectEndpoints({
+  endpoints: builder => ({
+    getUserServices: builder.query<GetServicesResponse, void>({
+      query: () => ({
+        url: '/payments/v1/users/services',
+        method: 'GET',
+      }),
+    }),
+    uploadStpFile: builder.mutation<UploadResponse, UploadFileRequest>({
+      query: ({ file }) => {
+        return {
+          url: '/payments/v1/upload',
+          method: 'POST',
+          body: file,
+        }
+      },
+    }),
+    getStpFiles: builder.query<
+      StpFilesResponse,
+      { page?: number; size?: number }
+    >({
+      query: ({ page = 0, size = 10 } = {}) => ({
+        url: `/payments/v1/batches?page=${page}&size=${size}`,
+        method: 'GET',
+      }),
+    }),
+    getStpFileDetails: builder.query<StpFileDetailsResponse, string>({
+      query: batchId => ({
+        url: `/payments/v1/batches/${batchId}/transactions`,
+        method: 'GET',
+      }),
+    }),
+    approveStpFile: builder.mutation<FileActionResponse, ApproveFileRequest>({
+      query: ({ batchId, rejectionReason = '' }) => ({
+        url: `/payments/v1/batches/${batchId}/approvals`,
+        method: 'PUT',
+        body: {
+          batchStatus: 'APPROVED',
+          rejectionReason,
+        },
+      }),
+    }),
+    rejectStpFile: builder.mutation<FileActionResponse, RejectFileRequest>({
+      query: ({ batchId, rejectionReason }) => ({
+        url: `/payments/v1/batches/${batchId}/approvals`,
+        method: 'PUT',
+        body: {
+          batchStatus: 'REJECTED',
+          rejectionReason,
+        },
+      }),
+    }),
+    submitBatch: builder.mutation<SubmitBatchResponse, SubmitBatchRequest>({
+      query: ({ batchId }) => ({
+        url: `/payments/v1/batches/${batchId}/submit`,
+        method: 'POST',
+      }),
+    }),
+    cancelBatch: builder.mutation<CancelBatchResponse, CancelBatchRequest>({
+      query: ({ batchId }) => ({
+        url: `/payments/v1/batches/${batchId}/cancel`,
+        method: 'DELETE',
+      }),
+    }),
+  }),
+  overrideExisting: false,
+})
+
+export const {
+  useGetUserServicesQuery,
+  useUploadStpFileMutation,
+  useGetStpFilesQuery,
+  useGetStpFileDetailsQuery,
+  useApproveStpFileMutation,
+  useRejectStpFileMutation,
+  useSubmitBatchMutation,
+  useCancelBatchMutation,
+} = stpApi
+/*********************state slice**************************************/
+import { createSlice, PayloadAction } from '@reduxjs/toolkit'
+
+export interface AppState {
+  sidebar: SideBarState
+}
+
+export interface SideBarState {
+  collapsed: boolean
+  activeItems?: string[]
+}
+
+const initialState: AppState = {
+  sidebar: {
+    collapsed: false,
+    activeItems: [],
+  },
+}
+
+const appSlice = createSlice({
+  name: 'app',
+  initialState,
+  reducers: {
+    toggleSidebar: (state, action: PayloadAction<boolean>) => {
+      state.sidebar.collapsed = action.payload
+    },
+    triggerSidebarItemActive: (
+      state,
+      action: PayloadAction<{ isOpen: boolean; item: string }>,
+    ) => {
+      const { isOpen, item } = action.payload
+      if (isOpen) {
+        if (!state.sidebar.activeItems?.includes(item)) {
+          state.sidebar.activeItems ||= []
+          state.sidebar.activeItems?.push(item)
+        }
+      } else {
+        state.sidebar.activeItems = state.sidebar.activeItems?.filter(
+          i => i !== item,
+        )
+      }
+    },
+  },
+  selectors: {
+    sidebarCollapsed: state => state.sidebar.collapsed,
+    sidebarActiveItems: state => state.sidebar.activeItems,
+  },
+})
+
+export const { toggleSidebar, triggerSidebarItemActive } = appSlice.actions
+export const { sidebarCollapsed, sidebarActiveItems } = appSlice.selectors
+export const appReducer = appSlice.reducer
