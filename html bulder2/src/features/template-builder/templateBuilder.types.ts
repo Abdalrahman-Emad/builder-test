@@ -52,3 +52,34 @@ export const DEFAULT_VARIABLES: TemplateVariable[] = [
   { key: "companyName", label: "Company Name", example: "CIB" },
   { key: "link", label: "Action Link", example: "https://example.com" },
 ];
+
+/**************builder Slice*********/
+import { createSlice, type PayloadAction } from "@reduxjs/toolkit";
+
+interface BuilderResultState {
+  html: string | null;
+  languageId: number | null;
+}
+
+const initialState: BuilderResultState = { html: null, languageId: null };
+
+export const builderSlice = createSlice({
+  name: "builderResult",
+  initialState,
+  reducers: {
+    setBuilderResult(
+      state,
+      action: PayloadAction<{ html: string; languageId: number }>
+    ) {
+      state.html = action.payload.html;
+      state.languageId = action.payload.languageId;
+    },
+    clearBuilderResult(state) {
+      state.html = null;
+      state.languageId = null;
+    },
+  },
+});
+
+export const { setBuilderResult, clearBuilderResult } = builderSlice.actions;
+export default builderSlice.reducer;
