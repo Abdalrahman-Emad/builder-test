@@ -52,7 +52,10 @@ export default function TemplateBuilderRoute() {
 
 import { toast } from '@cib/design-system-components'
 import { useRouter } from 'next/navigation'
-
+import { useEffect, useState } from 'react'
+import { useDispatch, useSelector } from 'react-redux'
+import { clearBuilderResult } from '../state/builderSlice'
+import type { RootState } from '../state/store'
 import {
   MessageTemplate,
   useGetMessageTemplatesQuery,
@@ -61,6 +64,15 @@ import { TemplateEditor } from './components/Templates/TemplateEditor'
 
 export function NewTemplatePage() {
   const router = useRouter()
+  const dispatch = useDispatch()
+  const builderResult = useSelector((s: RootState) => s.builderResult)
+  const [pendingHtml, setPendingHtml] = useState<string | undefined>()
+
+  useEffect(() => {
+    if (!builderResult.html) return
+    setPendingHtml(builderResult.html)
+    dispatch(clearBuilderResult())
+  }, [builderResult.html, dispatch])
 
   const handleSaved = (_saved: MessageTemplate) => {
     toast.success('Template created successfully.')
@@ -78,7 +90,7 @@ export function NewTemplatePage() {
       onSaved={handleSaved}
       onCancel={handleCancel}
       refetch={refetch}
+      html={pendingHtml}  // ← this is the only addition to the JSX
     />
   )
 }
-
