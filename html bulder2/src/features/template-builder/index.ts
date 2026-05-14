@@ -94,3 +94,57 @@ export function NewTemplatePage() {
     />
   )
 }
+
+
+/*************************state slice*****************/
+import { createSlice, PayloadAction } from '@reduxjs/toolkit'
+
+export interface AppState {
+  sidebar: SideBarState
+}
+
+export interface SideBarState {
+  collapsed: boolean
+  activeItems?: string[]
+}
+
+const initialState: AppState = {
+  sidebar: {
+    collapsed: false,
+    activeItems: [],
+  },
+}
+
+const appSlice = createSlice({
+  name: 'app',
+  initialState,
+  reducers: {
+    toggleSidebar: (state, action: PayloadAction<boolean>) => {
+      state.sidebar.collapsed = action.payload
+    },
+    triggerSidebarItemActive: (
+      state,
+      action: PayloadAction<{ isOpen: boolean; item: string }>,
+    ) => {
+      const { isOpen, item } = action.payload
+      if (isOpen) {
+        if (!state.sidebar.activeItems?.includes(item)) {
+          state.sidebar.activeItems ||= []
+          state.sidebar.activeItems?.push(item)
+        }
+      } else {
+        state.sidebar.activeItems = state.sidebar.activeItems?.filter(
+          i => i !== item,
+        )
+      }
+    },
+  },
+  selectors: {
+    sidebarCollapsed: state => state.sidebar.collapsed,
+    sidebarActiveItems: state => state.sidebar.activeItems,
+  },
+})
+
+export const { toggleSidebar, triggerSidebarItemActive } = appSlice.actions
+export const { sidebarCollapsed, sidebarActiveItems } = appSlice.selectors
+export const appReducer = appSlice.reducer
