@@ -280,3 +280,78 @@ const appSlice = createSlice({
 export const { toggleSidebar, triggerSidebarItemActive } = appSlice.actions
 export const { sidebarCollapsed, sidebarActiveItems } = appSlice.selectors
 export const appReducer = appSlice.reducer
+
+/************store.ts*********************************/
+import {
+  combineReducers,
+  configureStore,
+  createDynamicMiddleware,
+  Middleware,
+  Reducer,
+} from '@reduxjs/toolkit'
+import { setupListeners } from '@reduxjs/toolkit/query'
+import { persistReducer, persistStore } from 'redux-persist'
+
+import { baseApi } from './baseApi'
+import { idpApi } from './idpApi'
+import storage from './storage'
+
+const asyncReducers: Record<string, Reducer> = {}
+
+const dynamicWhitelist: string[] = []
+
+function createPersistConfig() {
+  return {
+    key: 'root',
+    storage,
+    whitelist: [...dynamicWhitelist],
+  }
+}
+
+function createPersistedReducer() {
+  return persistReducer(createPersistConfig(), createRootReducer())
+}
+
+function createRootReducer() {
+  const staticReducers = {
+    [baseApi.reducerPath]: baseApi.reducer,
+    [idpApi.reducerPath]: idpApi.reducer,
+  }
+  return combineReducers({
+    ...staticReducers,
+    ...asyncReducers,
+  })
+}
+
+export const dynamicMiddleware = createDynamicMiddleware()
+
+export const store = configureStore({
+  reducer: createPersistedReducer(),
+  middleware: getDefaultMiddleware =>
+    getDefaultMiddleware({
+      serializableCheck: false,
+      immutableCheck: false,
+    })
+      .concat(baseApi.middleware as Middleware, idpApi.middleware as Middleware)
+      .prepend(dynamicMiddleware.middleware),
+})
+
+export const persistor = persistStore(store)
+
+export const reducerManager = {
+  add: (key: string, reducer: Reducer, persist = false) => {
+    if (!key || asyncReducers[key]) return
+    asyncReducers[key] = reducer
+    if (persist) {
+      dynamicWhitelist.push(key)
+    }
+    const newReducer = createPersistedReducer()
+    store.replaceReducer(newReducer)
+  },
+}
+setupListeners(store.dispatch)
+
+export type AppStore = typeof store
+export type AppDispatch = AppStore['dispatch']
+export type RootState = ReturnType<AppStore['getState']>
+export type DynamicReducer = typeof reducerManager
