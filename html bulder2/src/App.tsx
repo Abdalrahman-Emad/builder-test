@@ -122,9 +122,7 @@ export function TemplateEditor({
   // eslint-disable-next-line react-hooks/incompatible-library
   const watchedContents = watch("contents");
   const languageIds = watchedContents.map((c) => c.languageId);
-  // const [activeLangId, setActiveLangId] = useState<number>(languageIds[0] ?? 1);
-    const [activeLangIds, setActiveLangIds] = useState<number[]>(languageIds.slice(0,2));
-
+  const [activeLangId, setActiveLangId] = useState<number>(languageIds[0] ?? 1);
 
   const [activeChannel, setActiveChannel] = useState<ActiveChannel>("sms");
 
@@ -254,14 +252,8 @@ export function TemplateEditor({
                 key={langId}
                 flag={opt.flag}
                 label={opt.label}
-                active={activeLangIds.includes(langId)}
-                onClick={() =>
-                   setActiveLangIds((prev) =>
-                    prev.includes(langId)
-                ? prev.length > 1 ? prev.filter ((id)=> id !== langId) : prev
-                : [...prev, langId]
-                  
-                  )}
+                active={activeLangId === langId}
+                onClick={() => setActiveLangId(langId)}
               />
             );
           })}
@@ -331,7 +323,7 @@ export function TemplateEditor({
         )}
         {/* TODO: Add editors for SMS, Push, and Inbox templates */}
         <ChannelTemplateEditors
-          key={`channel-editors-${activeLangIds}`}
+          key={`channel-editors-${activeLangId}`}
           control={control}
           register={register}
           activeLangId={activeLangId}
