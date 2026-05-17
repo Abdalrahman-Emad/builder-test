@@ -8,404 +8,253 @@ createRoot(document.getElementById('root')!).render(
     <App />
   </StrictMode>,
 )
-/*************api slice ********************/
-import { baseApi } from '@cib/redux-store'
+/*************builder slice ********************/
+import { createSlice, type PayloadAction } from '@reduxjs/toolkit'
 
-interface Service {
-  id: number
-  batchServiceName: string
+interface BuilderResultState {
+  html: string | null
+  languageId: number | null
+  pendingLoad: { html: string } | null // html going INTO the builder
 }
 
-interface GetServicesResponse {
-  success: boolean
-  timestamp: string
-  statusCode: number
-  value: Service[]
+const initialState: BuilderResultState = {
+  html: null,
+  languageId: null,
+  pendingLoad: null,
 }
 
-interface UploadFileRequest {
-  file: FormData
-  serviceId: string
-  valueDate: string
-}
-
-export interface BatchTransaction {
-  accountNumber: string
-  currency: string
-  branch: string
-  debit: string
-  credit: string
-  narrative: string
-  valueDate: string
-}
-
-interface BatchUploadValue {
-  id: string
-  totalDebitAmount: string
-  totalCreditAmount: string
-  transactions: BatchTransaction[]
-}
-
-interface UploadResponse {
-  success: boolean
-  timestamp: string
-  statusCode: number
-  value: BatchUploadValue
-}
-
-interface SubmitBatchRequest {
-  batchId: string
-}
-
-interface SubmitBatchResponse {
-  success: boolean
-  timestamp: string
-  statusCode: number
-  value: string
-  message?: string
-  path?: string
-  errorCode?: string
-}
-
-interface CancelBatchRequest {
-  batchId: string
-}
-
-interface CancelBatchResponse {
-  success: boolean
-  timestamp: string
-  statusCode: number
-  value: string
-}
-
-export interface StpFile {
-  batchId: string
-  seqId: number
-  fileName: string
-  uploadUser: string
-  uploadDate: string
-  totalTransactions: number
-  batchStatus: 'PENDING' | 'APPROVED' | 'REJECTED'
-  updatedBy?: string
-  updatedDate?: string
-}
-
-export interface FileTransaction {
-  accountNumber: string
-  currency: string
-  branch: string
-  debit: string
-  credit: string
-  narrative: string
-  valueDate: string
-}
-
-interface PageableResponse {
-  pageNumber: number
-  pageSize: number
-  sort: {
-    empty: boolean
-    unsorted: boolean
-    sorted: boolean
-  }
-  offset: number
-  unpaged: boolean
-  paged: boolean
-}
-
-interface StpFilesResponse {
-  success: boolean
-  timestamp: string
-  statusCode: number
-  value: {
-    content: StpFile[]
-    pageable: PageableResponse
-    totalElements: number
-    totalPages: number
-    last: boolean
-  }
-}
-
-interface StpFileDetailsResponse {
-  success: boolean
-  timestamp: string
-  statusCode: number
-  value: FileTransaction[]
-}
-
-interface ApproveFileRequest {
-  batchId: string
-  rejectionReason?: string
-}
-
-interface RejectFileRequest {
-  batchId: string
-  rejectionReason: string
-}
-
-interface FileActionResponse {
-  success: boolean
-  timestamp: string
-  statusCode: number
-  value: string
-}
-
-export const stpApi = baseApi.injectEndpoints({
-  endpoints: builder => ({
-    getUserServices: builder.query<GetServicesResponse, void>({
-      query: () => ({
-        url: '/payments/v1/users/services',
-        method: 'GET',
-      }),
-    }),
-    uploadStpFile: builder.mutation<UploadResponse, UploadFileRequest>({
-      query: ({ file }) => {
-        return {
-          url: '/payments/v1/upload',
-          method: 'POST',
-          body: file,
-        }
-      },
-    }),
-    getStpFiles: builder.query<
-      StpFilesResponse,
-      { page?: number; size?: number }
-    >({
-      query: ({ page = 0, size = 10 } = {}) => ({
-        url: `/payments/v1/batches?page=${page}&size=${size}`,
-        method: 'GET',
-      }),
-    }),
-    getStpFileDetails: builder.query<StpFileDetailsResponse, string>({
-      query: batchId => ({
-        url: `/payments/v1/batches/${batchId}/transactions`,
-        method: 'GET',
-      }),
-    }),
-    approveStpFile: builder.mutation<FileActionResponse, ApproveFileRequest>({
-      query: ({ batchId, rejectionReason = '' }) => ({
-        url: `/payments/v1/batches/${batchId}/approvals`,
-        method: 'PUT',
-        body: {
-          batchStatus: 'APPROVED',
-          rejectionReason,
-        },
-      }),
-    }),
-    rejectStpFile: builder.mutation<FileActionResponse, RejectFileRequest>({
-      query: ({ batchId, rejectionReason }) => ({
-        url: `/payments/v1/batches/${batchId}/approvals`,
-        method: 'PUT',
-        body: {
-          batchStatus: 'REJECTED',
-          rejectionReason,
-        },
-      }),
-    }),
-    submitBatch: builder.mutation<SubmitBatchResponse, SubmitBatchRequest>({
-      query: ({ batchId }) => ({
-        url: `/payments/v1/batches/${batchId}/submit`,
-        method: 'POST',
-      }),
-    }),
-    cancelBatch: builder.mutation<CancelBatchResponse, CancelBatchRequest>({
-      query: ({ batchId }) => ({
-        url: `/payments/v1/batches/${batchId}/cancel`,
-        method: 'DELETE',
-      }),
-    }),
-  }),
-  overrideExisting: false,
+export const builderSlice = createSlice({
+  name: 'builderResult',
+  initialState,
+  reducers: {
+    setBuilderResult(
+      state,
+      action: PayloadAction<{ html: string; languageId: number }>
+    ) {
+      state.html = action.payload.html
+      state.languageId = action.payload.languageId
+    },
+    clearBuilderResult(state) {
+      state.html = null
+      state.languageId = null
+    },
+    setBuilderPendingLoad(state, action: PayloadAction<{ html: string }>) {
+      state.pendingLoad = action.payload
+    },
+    clearBuilderPendingLoad(state) {
+      state.pendingLoad = null
+    },
+  },
 })
 
 export const {
-  useGetUserServicesQuery,
-  useUploadStpFileMutation,
-  useGetStpFilesQuery,
-  useGetStpFileDetailsQuery,
-  useApproveStpFileMutation,
-  useRejectStpFileMutation,
-  useSubmitBatchMutation,
-  useCancelBatchMutation,
-} = stpApi
-/*********************state slice**************************************/
-import { createSlice, PayloadAction } from '@reduxjs/toolkit'
+  setBuilderResult,
+  clearBuilderResult,
+  setBuilderPendingLoad,
+  clearBuilderPendingLoad,
+} = builderSlice.actions
 
-export interface AppState {
-  sidebar: SideBarState
-}
+export default builderSlice.reducer/
 
-export interface SideBarState {
-  collapsed: boolean
-  activeItems?: string[]
-}
-
-const initialState: AppState = {
-  sidebar: {
-    collapsed: false,
-    activeItems: [],
-  },
-}
-
-const appSlice = createSlice({
-  name: 'app',
-  initialState,
-  reducers: {
-    toggleSidebar: (state, action: PayloadAction<boolean>) => {
-      state.sidebar.collapsed = action.payload
-    },
-    triggerSidebarItemActive: (
-      state,
-      action: PayloadAction<{ isOpen: boolean; item: string }>,
-    ) => {
-      const { isOpen, item } = action.payload
-      if (isOpen) {
-        if (!state.sidebar.activeItems?.includes(item)) {
-          state.sidebar.activeItems ||= []
-          state.sidebar.activeItems?.push(item)
-        }
-      } else {
-        state.sidebar.activeItems = state.sidebar.activeItems?.filter(
-          i => i !== item,
-        )
-      }
-    },
-  },
-  selectors: {
-    sidebarCollapsed: state => state.sidebar.collapsed,
-    sidebarActiveItems: state => state.sidebar.activeItems,
-  },
-})
-
-export const { toggleSidebar, triggerSidebarItemActive } = appSlice.actions
-export const { sidebarCollapsed, sidebarActiveItems } = appSlice.selectors
-export const appReducer = appSlice.reducer
-
-/************store.ts*********************************/
-import {
-  combineReducers,
-  configureStore,
-  createDynamicMiddleware,
-  Middleware,
-  Reducer,
-} from '@reduxjs/toolkit'
-import { setupListeners } from '@reduxjs/toolkit/query'
-import { persistReducer, persistStore } from 'redux-persist'
-
-import { baseApi } from './baseApi'
-import { idpApi } from './idpApi'
-import storage from './storage'
-
-const asyncReducers: Record<string, Reducer> = {}
-
-const dynamicWhitelist: string[] = []
-
-function createPersistConfig() {
-  return {
-    key: 'root',
-    storage,
-    whitelist: [...dynamicWhitelist],
-  }
-}
-
-function createPersistedReducer() {
-  return persistReducer(createPersistConfig(), createRootReducer())
-}
-
-function createRootReducer() {
-  const staticReducers = {
-    [baseApi.reducerPath]: baseApi.reducer,
-    [idpApi.reducerPath]: idpApi.reducer,
-  }
-  return combineReducers({
-    ...staticReducers,
-    ...asyncReducers,
-  })
-}
-
-export const dynamicMiddleware = createDynamicMiddleware()
-
-export const store = configureStore({
-  reducer: createPersistedReducer(),
-  middleware: getDefaultMiddleware =>
-    getDefaultMiddleware({
-      serializableCheck: false,
-      immutableCheck: false,
-    })
-      .concat(baseApi.middleware as Middleware, idpApi.middleware as Middleware)
-      .prepend(dynamicMiddleware.middleware),
-})
-
-export const persistor = persistStore(store)
-
-export const reducerManager = {
-  add: (key: string, reducer: Reducer, persist = false) => {
-    if (!key || asyncReducers[key]) return
-    asyncReducers[key] = reducer
-    if (persist) {
-      dynamicWhitelist.push(key)
-    }
-    const newReducer = createPersistedReducer()
-    store.replaceReducer(newReducer)
-  },
-}
-setupListeners(store.dispatch)
-
-export type AppStore = typeof store
-export type AppDispatch = AppStore['dispatch']
-export type RootState = ReturnType<AppStore['getState']>
-export type DynamicReducer = typeof reducerManager
-//////////////////////////////////////***************new templates *****************/
+*********************Builder page **************************************/
 'use client'
 
-import { toast } from '@cib/design-system-components'
-import { useRouter } from 'next/navigation'
-import { useEffect, useRef, useState } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { useDispatch, useSelector } from 'react-redux'
-import { reducerManager } from '../state/store'
-import builderResultReducer, { clearBuilderResult } from '../state/builderSlice'
-import type { RootState } from '../state/store'
+import { useEffect, useRef } from 'react'
 import {
-  MessageTemplate,
-  useGetMessageTemplatesQuery,
-} from '../state/templatesSlice'
-import { TemplateEditor } from './components/Templates/TemplateEditor'
+  setBuilderResult,
+  clearBuilderPendingLoad,
+} from '@/state/builderSlice'
+import { reducerManager } from '@/state/store'
+import builderResultReducer from '@/state/builderSlice'
+import type { RootState } from '@/state/store'
+import { TemplateBuilderPage } from '@/components/template-builder/TemplateBuilderPage'
+import type { TemplateSavePayload } from '@/components/template-builder/templateBuilder.types'
 
-// Register once — safe to call multiple times, reducerManager guards duplicates
 reducerManager.add('builderResult', builderResultReducer)
 
-export function NewTemplatePage() {
+export default function TemplateBuilderRoute() {
   const router = useRouter()
   const dispatch = useDispatch()
-  const builderResult = useSelector(
-    (s: RootState & { builderResult: { html: string | null; languageId: number | null } }) =>
-      s.builderResult
+  const params = useSearchParams()
+  const languageId = Number(params.get('languageId') ?? 1)
+
+  const pendingLoad = useSelector(
+    (s: RootState) =>
+      (s as any).builderResult?.pendingLoad as { html: string } | null
   )
-  const [pendingHtml, setPendingHtml] = useState<string | undefined>()
 
+  // Build initialTemplate from pendingLoad so GrapesJS loads the existing HTML
+  const initialTemplate: TemplateSavePayload | null = pendingLoad
+    ? {
+        templateKey: '',
+        name: '',
+        version: 1,
+        html: pendingLoad.html,
+        project: null,   // no project data, builder will use importFromHtml
+        variables: [],
+      }
+    : null
+
+  // Clear pendingLoad once consumed so it doesn't re-apply on re-render
+  const consumed = useRef(false)
   useEffect(() => {
-    if (!builderResult?.html) return
-    setPendingHtml(builderResult.html)
-    dispatch(clearBuilderResult())
-  }, [builderResult?.html, dispatch])
-
-  const handleSaved = (_saved: MessageTemplate) => {
-    toast.success('Template created successfully.')
-    router.push('/notifications/templates')
-  }
-
-  const handleCancel = () => {
-    router.push('/notifications/templates')
-  }
-
-  const { refetch } = useGetMessageTemplatesQuery({})
+    if (pendingLoad && !consumed.current) {
+      consumed.current = true
+      dispatch(clearBuilderPendingLoad())
+    }
+  }, [pendingLoad, dispatch])
 
   return (
-    <TemplateEditor
-      onSaved={handleSaved}
-      onCancel={handleCancel}
-      refetch={refetch}
-      html={pendingHtml}
+    <TemplateBuilderPage
+      initialTemplate={initialTemplate}
+      onBack={() => router.back()}
+      onSave={async (payload) => {
+        dispatch(setBuilderResult({ html: payload.html, languageId }))
+        router.back()
+      }}
     />
   )
+}/
+
+************note*********************************/
+// existing block:
+if (initialPayload?.project) {
+  try {
+    editor.loadProjectData(initialPayload.project as ...)
+  } catch (error) {
+    console.error("[TemplateBuilder] Could not load project data", error)
+  }
+// ADD this else-if:
+} else if (initialPayload?.html) {
+  try {
+    const imported = parseImportedHtml(initialPayload.html)
+    editor.setComponents(imported.components)
+    if (imported.styles) editor.setStyle(imported.styles)
+  } catch (error) {
+    console.error("[TemplateBuilder] Could not load html", error)
+  }
 }
+/*********************/
+
+// At the top of ChannelTemplateEditors, add dispatch import
+import { useDispatch } from 'react-redux'
+import { reducerManager } from '../../../state/store'
+import builderResultReducer, {
+  setBuilderPendingLoad,
+} from '../../../state/builderSlice'
+
+reducerManager.add('builderResult', builderResultReducer)
+
+// Inside the component:
+function ChannelTemplateEditors({ ... }: ChannelTemplateEditorsProps) {
+  const dispatch = useDispatch()
+  // ...existing code...
+
+  // Replace the inbox section's button with this:
+  const inboxBodyValue = currentInbox?.text ?? ''
+  const hasBuilderContent = inboxBodyValue.trim().startsWith('<')
+
+  const handleOpenBuilder = () => {
+    if (hasBuilderContent) {
+      // Load existing HTML into builder before navigating
+      dispatch(setBuilderPendingLoad({ html: inboxBodyValue }))
+    }
+    router.push(
+      `/notifications/templates/template-builder?languageId=${activeLangId}`
+    )
+  }
+
+  // ...
+
+  // In the inbox channel JSX, replace the Button + Body textarea with:
+  {activeChannel === 'inbox' && (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2 text-sm">
+          <InboxIcon />
+          <span className="font-medium">Inbox</span>
+          <span className="text-xs text-muted-foreground">
+            {currentInbox ? 'Using specific template' : 'Using generic template'}
+          </span>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button
+            type="button"
+            variant={hasBuilderContent ? 'outline' : 'default'}
+            onClick={handleOpenBuilder}
+          >
+            {hasBuilderContent ? 'Edit in Builder' : 'Open Template Builder'}
+          </Button>
+          <span className="text-xs text-muted-foreground">
+            Use specific template
+          </span>
+          <Switch checked={!!currentInbox} onCheckedChange={toggleInbox} />
+        </div>
+      </div>
+
+      {currentInbox && currentInboxIndex > -1 && (
+        <>
+          <div className="space-y-1.5">
+            <FieldLabel>Subject</FieldLabel>
+            <Input
+              placeholder="Inbox message subject..."
+              {...register(`inboxTemplates.${currentInboxIndex}.subject`)}
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <FieldLabel>Summary</FieldLabel>
+            <Textarea
+              rows={4}
+              placeholder="Inbox summary..."
+              {...register(`inboxTemplates.${currentInboxIndex}.summary`)}
+            />
+          </div>
+
+          {/* Body — preview if from builder, textarea if manual */}
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between">
+              <FieldLabel>Body</FieldLabel>
+              {hasBuilderContent && (
+                <span className="text-xs text-muted-foreground">
+                  Built with Template Builder
+                </span>
+              )}
+            </div>
+
+            {hasBuilderContent ? (
+              // Show a live preview of the HTML
+              <div className="rounded-md border overflow-hidden h-48">
+                <iframe
+                  title="Body preview"
+                  srcDoc={inboxBodyValue}
+                  sandbox="allow-same-origin"
+                  className="w-full h-full border-0 bg-white"
+                />
+              </div>
+            ) : (
+              <Textarea
+                rows={8}
+                placeholder="Inbox message body or open builder above..."
+                {...register(`inboxTemplates.${currentInboxIndex}.text`)}
+              />
+            )}
+
+            {/* Hidden input keeps the value in the form when preview is shown */}
+            {hasBuilderContent && (
+              <input
+                type="hidden"
+                {...register(`inboxTemplates.${currentInboxIndex}.text`)}
+              />
+            )}
+          </div>
+        </>
+      )}
+    </div>
+  )}
+
+
+
+  /************************/
