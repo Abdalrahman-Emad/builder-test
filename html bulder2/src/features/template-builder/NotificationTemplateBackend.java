@@ -20,11 +20,12 @@ CREATE INDEX idx_campaign_labels_campaign
 ON CAMPAIGN_LABELS (campaign_id);
 
 /*******************/
-package com.example.project.controller.v1;
+package com.cibeg.digital.notifications.api.controller.v1;
 
-import com.example.project.dto.label.LabelRequestDto;
-import com.example.project.dto.label.LabelResponseDto;
-import com.example.project.service.LabelService;
+import com.cibeg.digital.notifications.api.dto.campaign.CampaignRequest;
+import com.cibeg.digital.notifications.api.dto.campaign.CampaignResponse;
+import com.cibeg.digital.notifications.api.dto.campaign.CampaignLabels;
+import com.cibeg.digital.notifications.api.service.CampaignService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -33,41 +34,49 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/v1/labels")
+@RequestMapping("/api/v1/campaigns")
 @RequiredArgsConstructor
-public class LabelsControllerV1 {
+public class CampaignController {
 
-    private final LabelService labelService;
+    private final CampaignService campaignService;
 
-    @GetMapping
-    public List<LabelResponseDto> getAllLabels() {
-        return labelService.getAllLabels();
-    }
-
-    @GetMapping("/{id}")
-    public LabelResponseDto getLabelById(@PathVariable Long id) {
-        return labelService.getLabelById(id);
-    }
-
+    // CREATE campaign (with labels)
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    public LabelResponseDto createLabel(
-            @Valid @RequestBody LabelRequestDto request
+    public CampaignResponse createCampaign(
+            @Valid @RequestBody CampaignRequest request
     ) {
-        return labelService.createLabel(request);
+        return campaignService.createCampaign(request);
     }
 
+    // GET campaign by id
+    @GetMapping("/{id}")
+    public CampaignResponse getCampaign(@PathVariable Long id) {
+        return campaignService.getCampaign(id);
+    }
+
+    // UPDATE full campaign (including labels)
     @PutMapping("/{id}")
-    public LabelResponseDto updateLabel(
+    public CampaignResponse updateCampaign(
             @PathVariable Long id,
-            @Valid @RequestBody LabelRequestDto request
+            @Valid @RequestBody CampaignRequest request
     ) {
-        return labelService.updateLabel(id, request);
+        return campaignService.updateCampaign(id, request);
     }
 
+    // UPDATE ONLY labels (optional but recommended)
+    @PutMapping("/{id}/labels")
+    public CampaignResponse updateLabels(
+            @PathVariable Long id,
+            @RequestBody List<CampaignLabels> labels
+    ) {
+        return campaignService.updateLabels(id, labels);
+    }
+
+    // DELETE campaign
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void deleteLabel(@PathVariable Long id) {
-        labelService.deleteLabel(id);
+    public void deleteCampaign(@PathVariable Long id) {
+        campaignService.deleteCampaign(id);
     }
 }
