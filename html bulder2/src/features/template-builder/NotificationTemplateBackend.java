@@ -1,348 +1,145 @@
-// ─────────────────────────────────────────────────────────────────────────────
-// Spring Boot Backend — Notification Template API
-// Package: com.yourapp.notifications.template
-//
-// Files in this snippet (one per section):
-//   1. NotificationTemplateDto.java
-//   2. NotificationTemplate.java       (JPA Entity)
-//   3. NotificationTemplateRepository.java
-//   4. NotificationTemplateService.java
-//   5. NotificationTemplateController.java
-//   6. TemplateVariableExtractor.java  (utility)
-// ─────────────────────────────────────────────────────────────────────────────
+-- 1. New tables: EVENT_DETAILS, EVENT_CHANNELS
+CREATE TABLE EVENT_DETAILS (
+                           event_id              NUMBER(19,0)  PRIMARY KEY ,
+                           template_id           NUMBER(19,0)  NOT NULL,
+                           service_id            NUMBER(19,0)  NOT NULL,
+                           event_category        NUMBER(3,0) NOT NULL ,
+                           created_at            TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                           created_by            VARCHAR2(50),
+                           updated_at            TIMESTAMP,
+                           updated_by            VARCHAR2(50),
+                           persist               NUMBER(1,0)  DEFAULT 0 NOT NULL,
+                           channel_type          NUMBER(2,0)  DEFAULT 0 NOT NULL
+)
+    ${plain_tablespace};
 
-// ════════════════════════════════════════════════════════════════════
-// 1. NotificationTemplateDto.java
-// ════════════════════════════════════════════════════════════════════
-/*
-package com.yourapp.notifications.template;
+CREATE TABLE EVENT_CHANNELS (
+                                   event_id           NUMBER(19,0)  NOT NULL,
+                                   channel_code          NUMBER(2,0)  NOT NULL,
+                                   CONSTRAINT pk_event_type_channel_code PRIMARY KEY (event_id,channel_code )
+)
+    ${plain_tablespace};
 
-import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.Pattern;
-import java.util.List;
+-- 2. Rename CAMPAIGNS.type to channel_type
+ALTER TABLE CAMPAIGNS RENAME COLUMN type TO channel_type;
 
-public record NotificationTemplateDto(
+-- 3. Check constraints
+ALTER TABLE EVENT_CHANNELS  ADD CONSTRAINT chk_ec_channel   CHECK (channel_code IN (1,2,3));
+ALTER TABLE CAMPAIGN_CHANNELS    ADD CONSTRAINT chk_cc_channel   CHECK (channel_code IN (1,2,3));
+ALTER TABLE CAMPAIGN_RECIPIENTS  ADD CONSTRAINT chk_cr_channel   CHECK (channel      IN (1,2,3));
 
-    @NotBlank(message = "templateKey is required")
-    @Pattern(regexp = "^[a-z0-9_]+$", message = "templateKey must be snake_case")
-    String templateKey,
+-- 4. Campaign name, description, schedule, dispatch_logic
+ALTER TABLE CAMPAIGNS ADD name VARCHAR2(255);
+ALTER TABLE CAMPAIGNS ADD description VARCHAR2(500);
+ALTER TABLE CAMPAIGNS ADD scheduled_at TIMESTAMP;
+ALTER TABLE CAMPAIGNS ADD dispatch_logic VARCHAR2(50);
 
-    @NotBlank(message = "name is required")
-    String name,
+CREATE INDEX idx_campaigns_name ON CAMPAIGNS (name);
 
-    int version,
+-- 5. Add audience mode to campaigns. Audience targeting (anonymous /
+-- registered / both) is fully expressed by AUDIENCE_USER_ASSOCIATIONS rows;
+-- there is no separate audience_type column.
+ALTER TABLE CAMPAIGNS ADD audience_mode VARCHAR2(10) DEFAULT 'OPEN';
 
-    @NotBlank(message = "html is required")
-    String html,
+-- 6. Create join table for multi-value user associations on audiences
+CREATE TABLE AUDIENCE_USER_ASSOCIATIONS (
+    audience_id        NUMBER(19,0) NOT NULL,
+    user_association   NUMBER(2)    NOT NULL,
+    CONSTRAINT pk_audience_user_assoc PRIMARY KEY (audience_id, user_association)
+)${plain_tablespace};
 
-    // GrapesJS project JSON — stored as TEXT/JSON column for re-editing
-    Object project,
+ALTER TABLE AUDIENCE_USER_ASSOCIATIONS
+    ADD CONSTRAINT fk_aud_ua_audience FOREIGN KEY (audience_id) REFERENCES AUDIENCES (id) ON DELETE CASCADE;
 
-    List<String> variables
-) {}
-*/
+-- Drop the old column
+ALTER TABLE AUDIENCES DROP COLUMN user_association;
 
-// ════════════════════════════════════════════════════════════════════
-// 2. NotificationTemplate.java  (JPA Entity)
-// ════════════════════════════════════════════════════════════════════
-/*
-package com.yourapp.notifications.template;
 
-import jakarta.persistence.*;
-import org.hibernate.annotations.JdbcTypeCode;
-import org.hibernate.type.SqlTypes;
-import java.time.Instant;
-import java.util.List;
+ALTER TABLE AUDIENCE_MEMBERS DROP CONSTRAINT uq_aud_member;
 
-@Entity
-@Table(name = "notification_templates")
-public class NotificationTemplate {
+ALTER TABLE AUDIENCE_MEMBERS DROP COLUMN user_id;
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
-    private String id;
+ALTER TABLE AUDIENCE_MEMBERS ADD user_name VARCHAR2(50);
 
-    // Human-readable unique key: "payment_success"
-    @Column(nullable = false, unique = true, length = 128)
-    private String templateKey;
+ALTER TABLE AUDIENCE_MEMBERS ADD customer_number VARCHAR2(50);
 
-    @Column(nullable = false, length = 256)
-    private String name;
+ALTER TABLE AUDIENCE_MEMBERS MODIFY mobile_number VARCHAR2(50) NULL;
 
-    @Column(nullable = false)
-    private int version = 1;
+ALTER TABLE AUDIENCE_MEMBERS ADD CONSTRAINT chk_aud_member_at_least_one
+    CHECK (user_name IS NOT NULL OR mobile_number IS NOT NULL OR customer_number IS NOT NULL);
 
-    // Production-ready HTML with embedded CSS
-    @Column(nullable = false, columnDefinition = "TEXT")
-    private String html;
+ALTER TABLE AUDIENCE_MEMBERS ADD CONSTRAINT uq_aud_member UNIQUE (audience_id, user_name);
 
-    // GrapesJS project JSON — serialized as JSONB (Postgres) or TEXT (MySQL)
-    @JdbcTypeCode(SqlTypes.JSON)
-    @Column(nullable = false, columnDefinition = "jsonb")
-    private Object project;
+ALTER TABLE CAMPAIGN_RECIPIENTS DROP COLUMN user_id;
 
-    // Extracted variable keys: ["name", "amount", "date"]
-    @JdbcTypeCode(SqlTypes.JSON)
-    @Column(columnDefinition = "jsonb")
-    private List<String> variables;
+ALTER TABLE CAMPAIGN_RECIPIENTS ADD user_name VARCHAR2(50);
 
-    @Column(nullable = false, updatable = false)
-    private Instant createdAt = Instant.now();
+ALTER TABLE CAMPAIGN_RECIPIENTS ADD customer_number VARCHAR2(50);
 
-    @Column(nullable = false)
-    private Instant updatedAt = Instant.now();
+-- 8. Login-event support: DEVICES.LANGUAGE, USER_DEVICES.MOBILE_NUMBER, FK & indexes
+ALTER TABLE DEVICES ADD (LANGUAGE VARCHAR2(10));
 
-    @PreUpdate
-    void onUpdate() { this.updatedAt = Instant.now(); }
+ALTER TABLE USER_DEVICES ADD (MOBILE_NUMBER VARCHAR2(20));
 
-    // ── Getters / Setters (or use Lombok @Data) ─────────────────────
-    public String getId() { return id; }
-    public String getTemplateKey() { return templateKey; }
-    public void setTemplateKey(String k) { this.templateKey = k; }
-    public String getName() { return name; }
-    public void setName(String n) { this.name = n; }
-    public int getVersion() { return version; }
-    public void setVersion(int v) { this.version = v; }
-    public String getHtml() { return html; }
-    public void setHtml(String h) { this.html = h; }
-    public Object getProject() { return project; }
-    public void setProject(Object p) { this.project = p; }
-    public List<String> getVariables() { return variables; }
-    public void setVariables(List<String> v) { this.variables = v; }
-    public Instant getCreatedAt() { return createdAt; }
-    public Instant getUpdatedAt() { return updatedAt; }
-    public void setUpdatedAt(Instant u) { this.updatedAt = u; }
-}
-*/
+ALTER TABLE USER_DEVICES
+    ADD CONSTRAINT FK_USER_DEVICES_DEVICE
+    FOREIGN KEY (DEVICE_ID) REFERENCES DEVICES(ID) ON DELETE CASCADE;
 
-// ════════════════════════════════════════════════════════════════════
-// 3. NotificationTemplateRepository.java
-// ════════════════════════════════════════════════════════════════════
-/*
-package com.yourapp.notifications.template;
+CREATE INDEX IX_DEVICES_LANGUAGE ON DEVICES(LANGUAGE);
+CREATE INDEX IX_DEVICES_PLATFORM ON DEVICES(PLATFORM);
 
-import org.springframework.data.jpa.repository.JpaRepository;
-import java.util.Optional;
 
-public interface NotificationTemplateRepository
-        extends JpaRepository<NotificationTemplate, String> {
+ALTER TABLE USER_DEVICES DROP COLUMN USER_ID;
 
-    Optional<NotificationTemplate> findByTemplateKey(String templateKey);
-    boolean existsByTemplateKey(String templateKey);
-    void deleteByTemplateKey(String templateKey);
-}
-*/
+ALTER TABLE USER_DEVICES ADD (USER_NAME VARCHAR2(50) NOT NULL);
 
-// ════════════════════════════════════════════════════════════════════
-// 4. NotificationTemplateService.java
-// ════════════════════════════════════════════════════════════════════
-/*
-package com.yourapp.notifications.template;
+CREATE UNIQUE INDEX UX_USER_DEVICES ON USER_DEVICES(DEVICE_ID, USER_NAME);
+CREATE INDEX IX_USER_DEVICES_USER ON USER_DEVICES(USER_NAME);
 
-import jakarta.transaction.Transactional;
-import org.springframework.stereotype.Service;
-import java.util.List;
-import java.util.Map;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
-@Service
-@Transactional
-public class NotificationTemplateService {
+ALTER TABLE CAMPAIGN_AUDIENCES
+    DROP CONSTRAINT fk_camp_aud_audience;
+ALTER TABLE CAMPAIGN_AUDIENCES
+    ADD CONSTRAINT fk_camp_aud_audience
+    FOREIGN KEY (audience_id) REFERENCES AUDIENCES (id) ON DELETE CASCADE;
 
-    private final NotificationTemplateRepository repo;
+ALTER TABLE AUDIENCE_PLATFORMS
+    DROP CONSTRAINT fk_audience_platforms_audience;
+ALTER TABLE AUDIENCE_PLATFORMS
+    ADD CONSTRAINT fk_audience_platforms_audience
+    FOREIGN KEY (audience_id) REFERENCES AUDIENCES (id) ON DELETE CASCADE;
 
-    public NotificationTemplateService(NotificationTemplateRepository repo) {
-        this.repo = repo;
-    }
+-- 11. Foreign keys on EVENT_DETAILS / EVENT_CHANNELS (was missing in step 1).
+ALTER TABLE EVENT_DETAILS
+    ADD CONSTRAINT fk_event_details_template
+    FOREIGN KEY (template_id) REFERENCES TEMPLATES (id);
+ALTER TABLE EVENT_DETAILS
+    ADD CONSTRAINT fk_event_details_service
+    FOREIGN KEY (service_id) REFERENCES SERVICES (id);
+ALTER TABLE EVENT_CHANNELS
+    ADD CONSTRAINT fk_event_channels_event
+    FOREIGN KEY (event_id) REFERENCES EVENT_DETAILS (event_id) ON DELETE CASCADE;
 
-    // ── Create ─────────────────────────────────────────────────────
-    public NotificationTemplate create(NotificationTemplateDto dto) {
-        if (repo.existsByTemplateKey(dto.templateKey())) {
-            throw new IllegalArgumentException(
-                "Template key already exists: " + dto.templateKey());
-        }
-        return repo.save(fromDto(new NotificationTemplate(), dto));
-    }
+CREATE INDEX idx_event_details_template ON EVENT_DETAILS (template_id);
+CREATE INDEX idx_event_details_service  ON EVENT_DETAILS (service_id);
 
-    // ── Update (new version) ────────────────────────────────────────
-    public NotificationTemplate update(String key, NotificationTemplateDto dto) {
-        NotificationTemplate existing = repo.findByTemplateKey(key)
-            .orElseThrow(() -> new IllegalArgumentException("Not found: " + key));
 
-        return repo.save(fromDto(existing, dto));
-    }
+ALTER TABLE CAMPAIGNS
+    ADD CONSTRAINT chk_campaign_audience_mode
+    CHECK (audience_mode IN ('OPEN', 'CLOSED'));
 
-    // ── Get by key ─────────────────────────────────────────────────
-    public NotificationTemplate getByKey(String key) {
-        return repo.findByTemplateKey(key)
-            .orElseThrow(() -> new IllegalArgumentException("Not found: " + key));
-    }
+ALTER TABLE AUDIENCE_USER_ASSOCIATIONS
+    ADD CONSTRAINT chk_aud_ua_value
+    CHECK (user_association IN (0, 1));
 
-    // ── List all ───────────────────────────────────────────────────
-    public List<NotificationTemplate> getAll() {
-        return repo.findAll();
-    }
 
-    // ── Delete ─────────────────────────────────────────────────────
-    public void deleteByKey(String key) {
-        repo.deleteByTemplateKey(key);
-    }
+ALTER TABLE AUDIENCE_MEMBERS
+    ADD CONSTRAINT uq_aud_member_mobile UNIQUE (audience_id, mobile_number);
 
-    // ── Render: replace {{var}} with actual values ──────────────────
-    public String render(String templateKey, Map<String, String> variables) {
-        NotificationTemplate template = getByKey(templateKey);
-        String html = template.getHtml();
+ALTER TABLE AUDIENCE_MEMBERS
+    ADD CONSTRAINT uq_aud_member_customer UNIQUE (audience_id, customer_number);
 
-        for (Map.Entry<String, String> entry : variables.entrySet()) {
-            String placeholder = "\\{\\{" + Pattern.quote(entry.getKey()) + "\\}\\}";
-            html = html.replaceAll(placeholder,
-                Matcher.quoteReplacement(entry.getValue()));
-        }
-        return html;
-    }
 
-    // ── Helper ─────────────────────────────────────────────────────
-    private NotificationTemplate fromDto(NotificationTemplate t,
-                                         NotificationTemplateDto dto) {
-        t.setTemplateKey(dto.templateKey());
-        t.setName(dto.name());
-        t.setVersion(dto.version() > 0 ? dto.version() : 1);
-        t.setHtml(dto.html());
-        t.setProject(dto.project());
-        t.setVariables(dto.variables() != null
-            ? dto.variables()
-            : TemplateVariableExtractor.extract(dto.html()));
-        return t;
-    }
-}
-*/
-
-// ════════════════════════════════════════════════════════════════════
-// 5. NotificationTemplateController.java
-// ════════════════════════════════════════════════════════════════════
-/*
-package com.yourapp.notifications.template;
-
-import jakarta.validation.Valid;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
-import java.util.List;
-import java.util.Map;
-
-@RestController
-@RequestMapping("/api/notifications/templates")
-@CrossOrigin(origins = "*")  // tighten in production
-public class NotificationTemplateController {
-
-    private final NotificationTemplateService service;
-
-    public NotificationTemplateController(NotificationTemplateService service) {
-        this.service = service;
-    }
-
-    // POST /api/notifications/templates
-    @PostMapping
-    public ResponseEntity<NotificationTemplate> create(
-            @Valid @RequestBody NotificationTemplateDto dto) {
-        return ResponseEntity.status(HttpStatus.CREATED)
-                             .body(service.create(dto));
-    }
-
-    // GET /api/notifications/templates
-    @GetMapping
-    public List<NotificationTemplate> getAll() {
-        return service.getAll();
-    }
-
-    // GET /api/notifications/templates/{key}
-    @GetMapping("/{key}")
-    public NotificationTemplate getByKey(@PathVariable String key) {
-        return service.getByKey(key);
-    }
-
-    // PUT /api/notifications/templates/{key}
-    @PutMapping("/{key}")
-    public NotificationTemplate update(
-            @PathVariable String key,
-            @Valid @RequestBody NotificationTemplateDto dto) {
-        return service.update(key, dto);
-    }
-
-    // DELETE /api/notifications/templates/{key}
-    @DeleteMapping("/{key}")
-    @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void delete(@PathVariable String key) {
-        service.deleteByKey(key);
-    }
-
-    // POST /api/notifications/templates/{key}/render
-    // Body: { "name": "John", "amount": "$120.00" }
-    // Returns: rendered HTML string (ready to send as notification body)
-    @PostMapping("/{key}/render")
-    public ResponseEntity<String> render(
-            @PathVariable String key,
-            @RequestBody Map<String, String> variables) {
-        String html = service.render(key, variables);
-        return ResponseEntity.ok()
-                             .header("Content-Type", "text/html; charset=UTF-8")
-                             .body(html);
-    }
-}
-*/
-
-// ════════════════════════════════════════════════════════════════════
-// 6. TemplateVariableExtractor.java
-// ════════════════════════════════════════════════════════════════════
-/*
-package com.yourapp.notifications.template;
-
-import java.util.ArrayList;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
-
-public final class TemplateVariableExtractor {
-
-    private static final Pattern VAR_PATTERN =
-        Pattern.compile("\\{\\{([a-zA-Z0-9_]+)\\}\\}");
-
-    private TemplateVariableExtractor() {}
-
-    // Extracts unique variable keys from template HTML
-    // "Hello {{name}}, your order {{orderId}} is ready."
-    // → ["name", "orderId"]
-    public static List<String> extract(String html) {
-        if (html == null || html.isBlank()) return List.of();
-        LinkedHashSet<String> found = new LinkedHashSet<>();
-        Matcher m = VAR_PATTERN.matcher(html);
-        while (m.find()) {
-            found.add(m.group(1));
-        }
-        return new ArrayList<>(found);
-    }
-}
-*/
-
-// ════════════════════════════════════════════════════════════════════
-// SQL — Liquibase / Flyway migration
-// ════════════════════════════════════════════════════════════════════
-/*
--- V1__create_notification_templates.sql
-
-CREATE TABLE notification_templates (
-    id              VARCHAR(36)  NOT NULL PRIMARY KEY,
-    template_key    VARCHAR(128) NOT NULL UNIQUE,
-    name            VARCHAR(256) NOT NULL,
-    version         INT          NOT NULL DEFAULT 1,
-    html            TEXT         NOT NULL,
-    project         JSONB        NOT NULL,
-    variables       JSONB,
-    created_at      TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
-    updated_at      TIMESTAMPTZ  NOT NULL DEFAULT NOW()
-);
-
-CREATE INDEX idx_notif_templates_key ON notification_templates(template_key);
-*/
+ALTER TABLE CAMPAIGN_RECIPIENTS
+    ADD CONSTRAINT chk_camp_recipient_at_least_one
+    CHECK (user_name IS NOT NULL OR mobile_number IS NOT NULL OR customer_number IS NOT NULL);
