@@ -279,6 +279,7 @@ import com.cibeg.digital.notifications.api.specifications.campaign.CampaignAudie
 import com.cibeg.digital.notifications.api.specifications.campaign.CampaignSpecifications;
 import com.cibeg.digital.notifications.api.specifications.campaign.DeviceRecipientSpecifications;
 import com.cibeg.digital.notifications.sms.dispatcher.central.repository.model.*;
+import com.cibeg.digital.notifications.sms.dispatcher.central.tables.CampaignLabels;
 import com.cibeg.digital.notifications.sms.dispatcher.central.tables.records.*;
 import com.cibeg.one.api.authorization.model.SecurityUser;
 import com.cibeg.one.api.core.errors.APIFunctionalException;
@@ -417,6 +418,7 @@ public class CampaignServiceImpl implements CampaignService {
 
                     insertChannels(dsl, campaignId, request);
                     insertAudiences(dsl, campaignId, request, userId);
+                    insertLabels(dsl, campaignId, request.getLabels());
 
                     return enrichResponse(dsl, campaign);
                 });
@@ -703,6 +705,27 @@ public class CampaignServiceImpl implements CampaignService {
     }
 
     private static final int RECIPIENT_CHUNK_SIZE = 1000;
+    
+    private void insertLabels(
+            DSLContext dsl,
+            BigInteger campaignId,
+            List<CampaignLabels> labels) {
+        if (labels == null || labels.isEmpty()) {
+            return;
+        }
+        
+        List<CampaignLabelsRecord> records =
+                labels.stream()
+                        .map(label ->{
+                            var rec = dsl.newRecord(CAMPAIGN_lABLES);
+                            rec.set.campaignId(campaignId);
+                            rec.setLabel(label.name());
+                            return rec;
+                        })
+                        .toList();
+        dsl.batchInsert(records).execute();
+    }
+    
 
     private CampaignRecipientsRecord buildRecipient(
             DSLContext dsl, BigInteger campId, RecipientBasics basics) {
@@ -836,6 +859,8 @@ public class CampaignServiceImpl implements CampaignService {
                         .toList();
         dsl.batchInsert(records).execute();
     }
+    
+    
 
     private CampaignResponseDto enrichResponse(DSLContext dsl, CampaignsRecord campaign) {
         List<BigInteger> ids = List.of(campaign.getId());
