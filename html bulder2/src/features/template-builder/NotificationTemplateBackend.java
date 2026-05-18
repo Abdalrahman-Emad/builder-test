@@ -111,3 +111,105 @@ public interface CampaignMapper {
     CampaignAuthorizationResponseDto toAuthorizationResponse(
             CampaignAuthorizationsRecord authorization);
 }
+
+
+
+/*************campaign controller*************/
+package com.cibeg.digital.notifications.api.controller.campaign;
+
+import com.cibeg.digital.notifications.api.dto.campaign.*;
+import com.cibeg.digital.notifications.api.service.campaign.CampaignService;
+import jakarta.servlet.http.HttpServletResponse;
+import jakarta.validation.Valid;
+import java.util.List;
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.*;
+
+@RestController
+@RequestMapping("/v1/campaigns")
+@RequiredArgsConstructor
+public class CampaignControllerV1 {
+
+    private final CampaignService campaignService;
+
+    @PreAuthorize("hasAuthority('campaign-inputter')")
+    @PostMapping
+    public ResponseEntity<CampaignResponseDto> create(
+            @Valid @RequestBody CampaignRequestDto request) {
+        CampaignResponseDto created = campaignService.create(request);
+        return ResponseEntity.status(HttpStatus.CREATED).body(created);
+    }
+
+    @PreAuthorize("hasAuthority('campaign-inputter')")
+    @PutMapping("/{id}")
+    public ResponseEntity<CampaignResponseDto> update(
+            @PathVariable Long id, @Valid @RequestBody CampaignRequestDto request) {
+        CampaignResponseDto updated = campaignService.update(id, request);
+        return ResponseEntity.ok(updated);
+    }
+
+    @PreAuthorize("hasAnyAuthority('campaign-inputter', 'campaign-authorizer')")
+    @GetMapping("/{id}")
+    public ResponseEntity<ApiResponse<CampaignResponseDto>> getById(@PathVariable Long id) {
+        CampaignResponseDto found = campaignService.getById(id);
+        return ResponseEntity.ok(ApiResponse.<CampaignResponseDto>builder().data(found).build());
+    }
+
+    @PreAuthorize("hasAnyAuthority('campaign-inputter', 'campaign-authorizer')")
+    @GetMapping
+    public ApiCursorResponse<List<CampaignResponseDto>> getAll(
+            @ModelAttribute CampaignSearchRequestDto searchRequest,
+            @Valid @ModelAttribute CursorPaginationRequest pagination) {
+        CursorPage<CampaignResponseDto> page =
+                campaignService.getFiltered(searchRequest, pagination);
+        return ApiCursorResponse.<List<CampaignResponseDto>>builder()
+                .data(page.getData())
+                .cursor(page.getNextCursor())
+                .hasNext(page.isHasNextPage())
+                .build();
+    }
+
+    @PreAuthorize("hasAuthority('campaign-inputter')")
+    @PostMapping("/{id}/submit")
+    public ResponseEntity<CampaignResponseDto> submitForApproval(@PathVariable Long id) {
+        CampaignResponseDto result = campaignService.submitForApproval(id);
+        return ResponseEntity.ok(result);
+    }
+
+    @PreAuthorize("hasAuthority('campaign-authorizer')")
+    @PostMapping("/{id}/approve")
+    public ResponseEntity<CampaignResponseDto> approve(@PathVariable Long id) {
+        CampaignResponseDto result = campaignService.approve(id);
+        return ResponseEntity.ok(result);
+    }
+
+    @PreAuthorize("hasAuthority('campaign-authorizer')")
+    @PostMapping("/{id}/reject")
+    public ResponseEntity<CampaignResponseDto> reject(
+            @PathVariable Long id,
+            @RequestBody(required = false) CampaignRejectRequestDto request) {
+        String reason = request != null ? request.getReason() : null;
+        CampaignResponseDto result = campaignService.reject(id, reason);
+        return ResponseEntity.ok(result);
+    }
+
+    @PreAuthorize("hasAnyAuthority('campaign-inputter', 'campaign-authorizer')")
+    @GetMapping(produces = "text/csv")
+    public void exportCsv(
+            @ModelAttribute CampaignSearchRequestDto request, HttpServletResponse response) {
+        response.setContentType("text/csv");
+        response.setHeader("Content-Disposition", "attachment; filename=\"campaigns.csv\"");
+        campaignService.exportCsv(request, response);
+    }
+
+    @PreAuthorize("hasAuthority('campaign-inputter')")
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> delete(@PathVariable Long id) {
+        campaignService.delete(id);
+        return ResponseEntity.noContent().build();
+    }
+}
+
