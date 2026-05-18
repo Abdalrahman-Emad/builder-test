@@ -31,3 +31,62 @@ public enum CampaignLabels {
     private List<CampaignLabels> labels;
 /***************************/
 
+
+
+/*************Mapper************/
+package com.cibeg.digital.notifications.api.mapper.campaign;
+
+import com.cibeg.digital.notifications.api.dto.campaign.CampaignAuthorizationResponseDto;
+import com.cibeg.digital.notifications.api.dto.campaign.CampaignResponseDto;
+import com.cibeg.digital.notifications.sms.dispatcher.central.tables.records.CampaignAuthorizationsRecord;
+import com.cibeg.digital.notifications.sms.dispatcher.central.tables.records.CampaignsRecord;
+import org.mapstruct.Mapper;
+import org.mapstruct.Mapping;
+
+@Mapper(componentModel = "spring")
+public interface CampaignMapper {
+
+    @Mapping(
+            target = "persist",
+            expression = "java(campaign.getPersist() != null && campaign.getPersist() == 1)")
+    @Mapping(target = "type", source = "channelType")
+    @Mapping(target = "authorizations", ignore = true)
+    @Mapping(target = "channels", ignore = true)
+    @Mapping(target = "userAssociations", ignore = true)
+    @Mapping(target = "audienceIds", ignore = true)
+    @Mapping(target = "recipientCount", ignore = true)
+    @Mapping(target = "audienceMemberCount", ignore = true)
+    @Mapping(target = "audienceWarning", ignore = true)
+    @Mapping(target = "labels", expression = "java(mapLabels(campaign))")
+
+    CampaignResponseDto toResponse(CampaignsRecord campaign);
+
+    @Mapping(target = "status", expression = "java(authorization.getStatus())")
+    CampaignAuthorizationResponseDto toAuthorizationResponse(
+            CampaignAuthorizationsRecord authorization);
+
+
+}
+
+
+BUILD FAILURE
+[INFO] ------------------------------------------------------------------------
+[INFO] Total time:  03:48 min
+[INFO] Finished at: 2026-05-18T14:01:08+03:00
+[INFO] ------------------------------------------------------------------------
+[ERROR] Failed to execute goal org.apache.maven.plugins:maven-compiler-plugin:3.13.0:compile (default-compile) on project notifications-api: Compilation failure
+[ERROR] /E:/Mostafa/notification-center/notifications-api/target/generated-sources/annotations/com/cibeg/digital/notifications/api/mapper/campaign/CampaignMapperImpl.java:[45,37] cannot find symbol                                                                                                                                                                                   
+[ERROR]   symbol:   method mapLabels(com.cibeg.digital.notifications.sms.dispatcher.central.tables.records.CampaignsRecord)
+[ERROR]   location: class com.cibeg.digital.notifications.api.mapper.campaign.CampaignMapperImpl
+[ERROR] 
+[ERROR] -> [Help 1]
+[ERROR] 
+[ERROR] To see the full stack trace of the errors, re-run Maven with the -e switch.
+[ERROR] Re-run Maven using the -X switch to enable full debug logging.
+[ERROR] 
+[ERROR] For more information about the errors and possible solutions, please read the following articles:
+[ERROR] [Help 1] http://cwiki.apache.org/confluence/display/MAVEN/MojoFailureException
+[ERROR] 
+[ERROR] After correcting the problems, you can resume the build with the command
+[ERROR]   mvn <args> -rf :notifications-api
+
