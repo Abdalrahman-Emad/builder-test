@@ -90,3 +90,24 @@ BUILD FAILURE
 [ERROR] After correcting the problems, you can resume the build with the command
 [ERROR]   mvn <args> -rf :notifications-api
 
+
+/**************/
+private Map<BigInteger, List<CampaignLabel>> fetchLabelsBatch(
+        DSLContext dsl,
+        List<BigInteger> campaignIds) {
+
+    return dsl.select(
+                    CAMPAIGN_LABELS.CAMPAIGN_ID,
+                    CAMPAIGN_LABELS.LABEL)
+            .from(CAMPAIGN_LABELS)
+            .where(CAMPAIGN_LABELS.CAMPAIGN_ID.in(campaignIds))
+            .fetch()
+            .stream()
+            .collect(
+                    Collectors.groupingBy(
+                            r -> r.get(CAMPAIGN_LABELS.CAMPAIGN_ID),
+                            Collectors.mapping(
+                                    r -> CampaignLabel.valueOf(
+                                            r.get(CAMPAIGN_LABELS.LABEL)),
+                                    Collectors.toList())));
+}
