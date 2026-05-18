@@ -10,7 +10,16 @@ ALTER TABLE CAMPAIGN_LABELS
     ADD CONSTRAINT fk_campaign_labels_campaign
     FOREIGN KEY (campaign_id)
     REFERENCES CAMPAIGNS(id)
-    ON DELETE CASCADE;/*******************/
+    ON DELETE CASCADE;
+
+ALTER TABLE CAMPAIGN_LABELS
+    ADD CONSTRAINT chk_campaign_labels_enum
+    CHECK (label IN ('ANNOUNCMENT', 'TRANSACTIONAL'));
+
+CREATE INDEX idx_campaign_labels_campaign
+ON CAMPAIGN_LABELS (campaign_id);
+
+/*******************/
 package com.example.project.controller.v1;
 
 import com.example.project.dto.label.LabelRequestDto;
