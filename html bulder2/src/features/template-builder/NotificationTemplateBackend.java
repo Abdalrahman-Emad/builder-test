@@ -80,3 +80,95 @@ public class CampaignController {
         campaignService.deleteCampaign(id);
     }
 }
+
+
+
+
+
+/*************camapign request dto****************/
+package com.cibeg.digital.notifications.api.dto.campaign;
+
+import com.cibeg.digital.notifications.sms.dispatcher.central.repository.model.AudienceMode;
+import com.cibeg.digital.notifications.sms.dispatcher.central.repository.model.CampaignType;
+import com.cibeg.digital.notifications.sms.dispatcher.central.repository.model.Channel;
+import com.cibeg.digital.notifications.sms.dispatcher.central.repository.model.DispatchLogic;
+import com.fasterxml.jackson.annotation.JsonProperty;
+import jakarta.validation.constraints.NotBlank;
+import java.time.LocalDateTime;
+import java.util.List;
+import lombok.*;
+
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
+public class CampaignRequestDto {
+
+    @NotBlank private String name;
+
+    private String description;
+
+    private Long templateId;
+
+    private CampaignType type;
+
+    @JsonProperty("isPersist")
+    private boolean persist;
+
+    private List<Channel> channels;
+
+    private DispatchLogic dispatchLogic;
+
+    private LocalDateTime scheduledAt;
+
+    private AudienceMode audienceMode;
+
+    private List<Long> audienceIds;
+
+    private List<CampaignLabels> labels;
+}
+
+/************response***********/
+package com.cibeg.digital.notifications.api.dto.campaign;
+
+import com.cibeg.digital.notifications.sms.dispatcher.central.repository.model.AudienceMode;
+import com.cibeg.digital.notifications.sms.dispatcher.central.repository.model.CampaignStatus;
+import com.cibeg.digital.notifications.sms.dispatcher.central.repository.model.CampaignType;
+import com.cibeg.digital.notifications.sms.dispatcher.central.repository.model.Channel;
+import com.cibeg.digital.notifications.sms.dispatcher.central.repository.model.DispatchLogic;
+import com.cibeg.digital.notifications.sms.dispatcher.central.repository.model.UserAssociation;
+import com.fasterxml.jackson.annotation.JsonInclude;
+import java.time.LocalDateTime;
+import java.util.List;
+import lombok.*;
+
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
+@JsonInclude(JsonInclude.Include.ALWAYS)
+public class CampaignResponseDto {
+
+    private Long id;
+    private String name;
+    private String description;
+    private Long templateId;
+    private CampaignType type;
+    private CampaignStatus status;
+    private boolean persist;
+    private DispatchLogic dispatchLogic;
+    private AudienceMode audienceMode;
+    private LocalDateTime scheduledAt;
+    private LocalDateTime createdAt;
+    private LocalDateTime updatedAt;
+    private String createdBy;
+    private String updatedBy;
+    private List<CampaignAuthorizationResponseDto> authorizations;
+    private List<Channel> channels;
+    private List<UserAssociation> userAssociations;
+    private List<Long> audienceIds;
+    private Long recipientCount;
+    private Long audienceMemberCount;
+    private String audienceWarning;
+    private List<CampaignLabels> labels;
+}
