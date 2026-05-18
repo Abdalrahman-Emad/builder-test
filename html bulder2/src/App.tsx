@@ -92,7 +92,7 @@ export function TemplateEditor({
         languageId: c.languageId,
         title: c.title ?? "",
         text: c.text,
-      })) ?? [makeEmptyContent(1)],
+      })) ?? [makeEmptyContent(2)],
       smsTemplates:
         template?.smsTemplates?.map((s) => ({
           languageId: s.languageId,
@@ -122,7 +122,9 @@ export function TemplateEditor({
   // eslint-disable-next-line react-hooks/incompatible-library
   const watchedContents = watch("contents");
   const languageIds = watchedContents.map((c) => c.languageId);
-  const [activeLangId, setActiveLangId] = useState<number>(languageIds[0] ?? 1);
+  // const [activeLangId, setActiveLangId] = useState<number>(languageIds[0] ?? 1);
+  const [activeLangIds, setActiveLangIds] = useState<number[]>([1,2])
+  const activeLangId = activeLangIds[0];
 
   const [activeChannel, setActiveChannel] = useState<ActiveChannel>("sms");
 
@@ -135,7 +137,7 @@ export function TemplateEditor({
     (c) => c.languageId === activeLangId,
   );
 
-  useEffect(() => {
+   useEffect(() => {
     if (!languageIds.includes(activeLangId) && languageIds.length > 0) {
       setActiveLangId(languageIds[0] ?? 1);
     }
@@ -157,7 +159,7 @@ export function TemplateEditor({
 
   const handleAddLanguage = (languageId: number) => {
     appendContent(makeEmptyContent(languageId));
-    setActiveLangId(languageId);
+    setActiveLangIds(languageIds);
   };
 
   const handleRemoveLanguage = (languageId: number) => {
@@ -252,8 +254,14 @@ export function TemplateEditor({
                 key={langId}
                 flag={opt.flag}
                 label={opt.label}
-                active={activeLangId === langId}
-                onClick={() => setActiveLangId(langId)}
+                active={activeLangIds.includes(langId)}
+                onClick={() =>
+                  setActiveLangIds((prev) =>
+                  prev.includes(langId)
+                ? prev.length > 1 ? prev.filter((id)=> id !== langId) : prev
+                : [...prev, langId]
+              )
+                }
               />
             );
           })}
