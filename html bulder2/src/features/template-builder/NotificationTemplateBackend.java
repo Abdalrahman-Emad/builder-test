@@ -19,12 +19,11 @@ ALTER TABLE CAMPAIGN_LABELS
 CREATE INDEX idx_campaign_labels_campaign
 ON CAMPAIGN_LABELS (campaign_id);
 
-/*******************/
+/********controller***********/
 package com.cibeg.digital.notifications.api.controller.v1;
 
-import com.cibeg.digital.notifications.api.dto.campaign.CampaignRequest;
-import com.cibeg.digital.notifications.api.dto.campaign.CampaignResponse;
-import com.cibeg.digital.notifications.api.dto.campaign.CampaignLabels;
+import com.cibeg.digital.notifications.api.dto.campaign.CampaignRequestDto;
+import com.cibeg.digital.notifications.api.dto.campaign.CampaignResponseDto;
 import com.cibeg.digital.notifications.api.service.CampaignService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -43,32 +42,32 @@ public class CampaignController {
     // CREATE campaign (with labels)
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    public CampaignResponse createCampaign(
-            @Valid @RequestBody CampaignRequest request
+    public CampaignResponseDto createCampaign(
+            @Valid @RequestBody CampaignRequestDto request
     ) {
         return campaignService.createCampaign(request);
     }
 
-    // GET campaign by id
+    // GET campaign by id (includes labels)
     @GetMapping("/{id}")
-    public CampaignResponse getCampaign(@PathVariable Long id) {
-        return campaignService.getCampaign(id);
+    public CampaignResponseDto getCampaign(@PathVariable Long id) {
+        return campaignService.getCampaignById(id);
     }
 
-    // UPDATE full campaign (including labels)
+    // UPDATE campaign (replace everything including labels)
     @PutMapping("/{id}")
-    public CampaignResponse updateCampaign(
+    public CampaignResponseDto updateCampaign(
             @PathVariable Long id,
-            @Valid @RequestBody CampaignRequest request
+            @Valid @RequestBody CampaignRequestDto request
     ) {
         return campaignService.updateCampaign(id, request);
     }
 
-    // UPDATE ONLY labels (optional but recommended)
+    // UPDATE ONLY labels
     @PutMapping("/{id}/labels")
-    public CampaignResponse updateLabels(
+    public CampaignResponseDto updateLabels(
             @PathVariable Long id,
-            @RequestBody List<CampaignLabels> labels
+            @RequestBody List<com.cibeg.digital.notifications.api.dto.campaign.CampaignLabels> labels
     ) {
         return campaignService.updateLabels(id, labels);
     }
@@ -80,8 +79,6 @@ public class CampaignController {
         campaignService.deleteCampaign(id);
     }
 }
-
-
 
 /*************mapper***************/
 
