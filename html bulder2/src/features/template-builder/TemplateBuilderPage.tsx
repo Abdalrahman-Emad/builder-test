@@ -13,6 +13,7 @@ import static com.cibeg.digital.notifications.sms.dispatcher.central.tables.Camp
 import static com.cibeg.digital.notifications.sms.dispatcher.central.tables.Campaigns.CAMPAIGNS;
 import static com.cibeg.digital.notifications.sms.dispatcher.central.tables.Templates.TEMPLATES;
 import static com.cibeg.digital.notifications.sms.dispatcher.central.tables.UserDevices.USER_DEVICES;
+import static com.cibeg.digital.notifications.sms.dispatcher.central.tables.CampaignLabels.CAMPAIGN_LABELS;
 
 import com.cibeg.digital.notifications.api.dto.*;
 import com.cibeg.digital.notifications.api.dto.campaign.*;
@@ -166,7 +167,7 @@ public class CampaignServiceImpl implements CampaignService {
                     dsl.deleteFrom(CAMPAIGN_AUDIENCES)
                             .where(CAMPAIGN_AUDIENCES.CAMPAIGN_ID.eq(campaignId))
                             .execute();
-                    
+
                     dsl.deleteFrom(CAMPAIGN_LABELS)
                                     .where(CAMPAIGN_LABELS.CAMPAIGN_ID.eq(campaignId))
                                     .execute();
@@ -469,18 +470,34 @@ public class CampaignServiceImpl implements CampaignService {
         if (labels == null || labels.isEmpty()) {
             return;
         }
-        Set<CampaignLabels> uniqueLabels = new LinkedHashSet<>(labels);
+
+        Set<String> uniqueLabels =
+                labels.stream()
+                        .filter(Objects::nonNull)
+                        .map(1 -> 1. name())
+                        .filter(Objects::nonNull)
+                        .map(String::trim)
+                        .filter(s -> !s.isEmpty())
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+
+        uniqueLabels.forEach(label -> {
+            if (label.length() > 50) {
+                throw new APIFunctionalException(CampaignErrors.INVALID_LABEL);
+            }
+        });
+
+
         List<CampaignLabelsRecord> records =
-                 uniqueLabels.stream()
+                uniqueLabels.stream()
                         .filter(Objects::nonNull)
                         .map(label -> {
-                            
+
                             //validation
-                            if (label.name().length() > 50){
+                            if (label.name().length() > 50) {
                                 throw new APIFunctionalException(CampaignErrors.INVALID_LABEL);
                             }
-                            
-                            CampaignLabelsRecord rec = dsl.newRecord(CampaignLabels.CAMPAIGN_LABELS);
+
+                            CampaignLabelsRecord rec = dsl.newRecord(CAMPAIGN_LABELS);
                             rec.setCampaignId(campaignId);
                             rec.setLabel(label.name().trim());
                             return rec;
