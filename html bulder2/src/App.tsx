@@ -105,7 +105,7 @@ Feature: Campaign Labels
 
 
 
-
+"C:\Program Files\Java\jdk-21\bin\java.exe" "-javaagent:C:\Users\MOGE42123\AppData\Local\JetBrains\IntelliJIdea2026.1\captureAgent\debugger-agent.jar=file:///C:/Users/MOGE42~1/AppData/Local/Temp/2/capture12711433380435928625.props" -Xmx2g -XX:+UseG1GC -Didea.test.cyclic.buffer.size=1048576 "-javaagent:E:\Mostafa\jetbrainsTools\intelji\IntelliJ IDEA 2026.1\lib\idea_rt.jar=37148" -Dkotlinx.coroutines.debug.enable.creation.stack.trace=false -Ddebugger.agent.enable.coroutines=true -Dkotlinx.coroutines.debug.enable.flows.stack.trace=true -Dkotlinx.coroutines.debug.enable.mutable.state.flows.stack.trace=true -Ddebugger.async.stack.trace.for.all.threads=true -Dfile.encoding=UTF-8 -Dsun.stdout.encoding=UTF-8 -Dsun.stderr.encoding=UTF-8 @C:\Users\MOGE42123\AppData\Local\Temp\2\idea_arg_file1429012573 com.intellij.rt.junit.JUnitStarter -ideVersion5 -junit5 com.cibeg.digital.notifications.IntegrationTests
 Internal Error occurred.
 org.junit.platform.commons.JUnitException: TestEngine with ID 'one-testing' failed to discover tests
 	at org.junit.platform.launcher.core.EngineDiscoveryOrchestrator.discoverEngineRoot(EngineDiscoveryOrchestrator.java:208)
@@ -127,9 +127,20 @@ org.junit.platform.commons.JUnitException: TestEngine with ID 'one-testing' fail
 	at com.intellij.rt.junit.IdeaTestRunner$Repeater.startRunnerWithArgs(IdeaTestRunner.java:35)
 	at com.intellij.rt.junit.JUnitStarter.prepareStreamsAndStart(JUnitStarter.java:225)
 	at com.intellij.rt.junit.JUnitStarter.main(JUnitStarter.java:61)
-Caused by: org.junit.platform.commons.PreconditionViolationException: Unable to parse tag expression "@campaign-portal-e2e and @labels": missing operator between 'and' at index <23> and '@labels' at index <25>
-	at org.junit.platform.launcher.TagFilter.lambda$parse$8(TagFilter.java:181)
-	at org.junit.platform.launcher.tagexpression.ParseResult.tagExpressionOrThrow(ParseResult.java:42)
+Caused by: org.junit.platform.commons.PreconditionViolationException: Tag name [@campaign-portal-e2e,@labels] must be syntactically valid
+	at org.junit.platform.commons.util.Preconditions.condition(Preconditions.java:313)
+	at org.junit.platform.engine.TestTag.<init>(TestTag.java:120)
+	at org.junit.platform.engine.TestTag.create(TestTag.java:116)
+	at org.junit.platform.launcher.tagexpression.TagExpressions.tag(TagExpressions.java:23)
+	at org.junit.platform.launcher.tagexpression.ShuntingYard.convertLeafTokenToExpression(ShuntingYard.java:93)
+	at org.junit.platform.launcher.tagexpression.ShuntingYard.process(ShuntingYard.java:82)
+	at org.junit.platform.launcher.tagexpression.ShuntingYard.lambda$processTokens$0(ShuntingYard.java:64)
+	at org.junit.platform.launcher.tagexpression.ParseStatus.process(ParseStatus.java:71)
+	at org.junit.platform.launcher.tagexpression.ShuntingYard.processTokens(ShuntingYard.java:64)
+	at org.junit.platform.launcher.tagexpression.ShuntingYard.execute(ShuntingYard.java:51)
+	at org.junit.platform.launcher.tagexpression.Parser.constructExpressionFrom(Parser.java:31)
+	at org.junit.platform.launcher.tagexpression.Parser.parse(Parser.java:23)
+	at org.junit.platform.launcher.tagexpression.TagExpression.parseFrom(TagExpression.java:38)
 	at org.junit.platform.launcher.TagFilter.parse(TagFilter.java:180)
 	at java.base/java.util.stream.ReferencePipeline$3$1.accept(ReferencePipeline.java:197)
 	at java.base/java.util.Spliterators$ArraySpliterator.forEachRemaining(Spliterators.java:1024)
@@ -152,4 +163,3 @@ Caused by: org.junit.platform.commons.PreconditionViolationException: Unable to 
 	... 18 more
 
 Process finished with exit code -2
-
