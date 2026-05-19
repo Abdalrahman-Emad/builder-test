@@ -105,8 +105,8 @@ Feature: Campaign Labels
 
 
 
-@campaign-portal-templatekljkjlk
-Feature: End-to-end Campaign Portal - Languages, Audiences, Templates, and Campaign Lifecycle
+@campaign-portal-labels
+Feature: Campaign Labels
 
   Background:
     Given a logged in user with id "campaignuser001" and roles "campaign-inputter"
@@ -116,53 +116,111 @@ Feature: End-to-end Campaign Portal - Languages, Audiences, Templates, and Campa
       | #lang1 | English | en   |
       | #lang2 | Arabic  | ar   |
 
-  Scenario: List and retrieve languages
-    When I list all campaign portal languages
-    Then the campaign portal response status should be 200
-    And the campaign portal response list at "data" should have 2 entries
-    When I get campaign portal language "#lang1"
-    Then the campaign portal response status should be 200
-    And the campaign portal response field "data.name" should be "English"
-    And the campaign portal response field "data.code" should be "en"
-
-  Scenario: Template CRUD with channel-specific content
+  Scenario: Create campaign with labels
     When I create a campaign portal template:
       """
       {
-        "name": "Welcome Template",
-        "description": "Welcome Template",
+        "name": "Labels Template",
         "smsTemplates": [
-          {"languageId": #lang1, "text": "Hello, welcome to CIB"},
-          {"languageId": #lang2, "text": "Ahlan bik fi CIB"}
-        ],
-        "pushTemplates": [
-          {"languageId": #lang1, "title": "Welcome", "text": "Welcome to CIB!"}
+          {"languageId": #lang1, "text": "Hello"},
+          {"languageId": #lang2, "text": "مرحبا"}
         ]
       }
       """
     Then the campaign portal response status should be 201
-    And the campaign portal response field "description" should be "Welcome Template"
     And I save campaign portal response field "id" as "#tmpl1"
-    When I get campaign portal template "#tmpl1"
-    Then the campaign portal response status should be 200
-    And the campaign portal response field "data.description" should be "Welcome Template"
-    And the campaign portal response list at "data.smsTemplates" should have 2 entries
-    And the campaign portal response list at "data.pushTemplates" should have 1 entries
-    When I update campaign portal template "#tmpl1":
+
+    When I create a campaign portal campaign:
       """
       {
-        "name": "Updated Welcome",
-        "description": "Updated Welcome",
+        "name": "Campaign With Labels",
+        "templateId": #tmpl1,
+        "channels": ["SMS"],
+        "audienceMode": "OPEN",
+        "labels": ["ANNOUNCEMENT", "TRANSACTIONAL"]
+      }
+      """
+    Then the campaign portal response status should be 201
+    And the campaign portal response field "labels[0]" should be "ANNOUNCEMENT"
+    And the campaign portal response field "labels[1]" should be "TRANSACTIONAL"
+    And I save campaign portal response field "id" as "#camp1"
+
+    When I get campaign portal campaign "#camp1"
+    Then the campaign portal response status should be 200
+    And the campaign portal response field "data.labels[0]" should be "ANNOUNCEMENT"
+    And the campaign portal response field "data.labels[1]" should be "TRANSACTIONAL"
+
+  Scenario: Update campaign labels
+    When I create a campaign portal template:
+      """
+      {
+        "name": "Update Labels Template",
         "smsTemplates": [
-          {"languageId": #lang1, "text": "Updated SMS text"},
-          {"languageId": #lang2, "text": "نص محدث"}
+          {"languageId": #lang1, "text": "Hello"},
+          {"languageId": #lang2, "text": "مرحبا"}
         ]
       }
       """
+    Then the campaign portal response status should be 201
+    And I save campaign portal response field "id" as "#tmpl1"
+
+    When I create a campaign portal campaign:
+      """
+      {
+        "name": "Campaign Before Update",
+        "templateId": #tmpl1,
+        "channels": ["SMS"],
+        "audienceMode": "OPEN",
+        "labels": ["ANNOUNCEMENT"]
+      }
+      """
+    Then the campaign portal response status should be 201
+    And I save campaign portal response field "id" as "#camp1"
+
+    When I update campaign portal campaign "#camp1":
+      """
+      {
+        "name": "Campaign After Update",
+        "templateId": #tmpl1,
+        "channels": ["SMS"],
+        "audienceMode": "OPEN",
+        "labels": ["TRANSACTIONAL"]
+      }
+      """
     Then the campaign portal response status should be 200
-    And the campaign portal response field "description" should be "Updated Welcome"
-    When I get campaign portal template "#tmpl1"
+    And the campaign portal response field "labels[0]" should be "TRANSACTIONAL"
+
+    When I get campaign portal campaign "#camp1"
     Then the campaign portal response status should be 200
-    And the campaign portal response list at "data.smsTemplates" should have 2 entries
-    When I delete campaign portal template "#tmpl1"
-    Then the campaign portal response status should be 204
+    And the campaign portal response field "data.labels[0]" should be "TRANSACTIONAL"
+
+  Scenario: Campaign without labels still works
+    When I create a campaign portal template:
+      """
+      {
+        "name": "No Labels Template",
+        "smsTemplates": [
+          {"languageId": #lang1, "text": "Hello"},
+          {"languageId": #lang2, "text": "مرحبا"}
+        ]
+      }
+      """
+    Then the campaign portal response status should be 201
+    And I save campaign portal response field "id" as "#tmpl1"
+
+    When I create a campaign portal campaign:
+      """
+      {
+        "name": "Campaign Without Labels",
+        "templateId": #tmpl1,
+        "channels": ["SMS"],
+        "audienceMode": "OPEN"
+      }
+      """
+    Then the campaign portal response status should be 201
+    And the campaign portal response field "name" should be "Campaign Without Labels"
+
+    And I save campaign portal response field "id" as "#camp1"
+
+    When I get campaign portal campaign "#camp1"
+    Then the campaign portal response status should be 200
