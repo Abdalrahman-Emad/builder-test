@@ -1,19 +1,218 @@
-public class CampaignLabelsValidator {
+@campaign-portal-labels
+Feature: Campaign Labels
 
-    public static void validate(List<CampaignLabel> labels) {
+  Background:
+    Given a logged in user with id "paga999339" and roles "campaign-inputter"
+    And the campaign portal data is clean
+    And the central LANGUAGES table contains:
+      | id     | name    | code |
+      | #lang1 | English | en   |
+      | #lang2 | Arabic  | ar   |
 
-        if (labels == null || labels.isEmpty()) {
-            return;
-        }
+  Scenario: Create campaign with single ANNOUNCEMENT label
+    When I create a campaign portal template:
+      """
+      {
+        "name": "Template 1",
+        "smsTemplates": [
+          {"languageId": #lang1, "text": "Hello"},
+          {"languageId": #lang2, "text": "مرحبا"}
+        ]
+      }
+      """
+    Then the campaign portal response status should be 201
+    And I save campaign portal response field "id" as "#tmpl1"
 
-        Set<CampaignLabel> unique = new HashSet<>(labels);
+    When I create a campaign portal campaign:
+      """
+      {
+        "name": "Campaign ANN",
+        "templateId": #tmpl1,
+        "channels": ["SMS"],
+        "audienceMode": "OPEN",
+        "labels": ["ANNOUNCEMENT"]
+      }
+      """
+    Then the campaign portal response status should be 201
 
-        if (unique.contains(CampaignLabel.TRANSACTIONAL)
-                && unique.contains(CampaignLabel.ANNOUNCEMENT)) {
+  Scenario: Create campaign with TRANSACTIONAL label only
+    When I create a campaign portal template:
+      """
+      {
+        "name": "Template 2",
+        "smsTemplates": [
+          {"languageId": #lang1, "text": "Hello"},
+          {"languageId": #lang2, "text": "مرحبا"}
+        ]
+      }
+      """
+    Then the campaign portal response status should be 201
+    And I save campaign portal response field "id" as "#tmpl1"
 
-            throw new APIFunctionalException(
-                    CampaignErrors.INVALID_LABEL_COMBINATION
-            );
-        }
-    }
-}
+    When I create a campaign portal campaign:
+      """
+      {
+        "name": "Campaign TRX",
+        "templateId": #tmpl1,
+        "channels": ["SMS"],
+        "audienceMode": "OPEN",
+        "labels": ["TRANSACTIONAL"]
+      }
+      """
+    Then the campaign portal response status should be 201
+
+  Scenario: Create campaign with valid mixed labels
+    When I create a campaign portal template:
+      """
+      {
+        "name": "Template 3",
+        "smsTemplates": [
+          {"languageId": #lang1, "text": "Hello"},
+          {"languageId": #lang2, "text": "مرحبا"}
+        ]
+      }
+      """
+    Then the campaign portal response status should be 201
+    And I save campaign portal response field "id" as "#tmpl1"
+
+    When I create a campaign portal campaign:
+      """
+      {
+        "name": "Campaign Mixed",
+        "templateId": #tmpl1,
+        "channels": ["SMS"],
+        "audienceMode": "OPEN",
+        "labels": ["NEW_PRODUCT", "ANNOUNCEMENT"]
+      }
+      """
+    Then the campaign portal response status should be 201
+
+  Scenario: Create campaign without labels
+    When I create a campaign portal template:
+      """
+      {
+        "name": "Template 4",
+        "smsTemplates": [
+          {"languageId": #lang1, "text": "Hello"},
+          {"languageId": #lang2, "text": "مرحبا"}
+        ]
+      }
+      """
+    Then the campaign portal response status should be 201
+    And I save campaign portal response field "id" as "#tmpl1"
+
+    When I create a campaign portal campaign:
+      """
+      {
+        "name": "Campaign No Labels",
+        "templateId": #tmpl1,
+        "channels": ["SMS"],
+        "audienceMode": "OPEN"
+      }
+      """
+    Then the campaign portal response status should be 201
+
+  Scenario: Reject ANNOUNCEMENT + TRANSACTIONAL combination
+    When I create a campaign portal template:
+      """
+      {
+        "name": "Template 5",
+        "smsTemplates": [
+          {"languageId": #lang1, "text": "Hello"},
+          {"languageId": #lang2, "text": "مرحبا"}
+        ]
+      }
+      """
+    Then the campaign portal response status should be 201
+    And I save campaign portal response field "id" as "#tmpl1"
+
+    When I create a campaign portal campaign:
+      """
+      {
+        "name": "Invalid Campaign",
+        "templateId": #tmpl1,
+        "channels": ["SMS"],
+        "audienceMode": "OPEN",
+        "labels": ["ANNOUNCEMENT", "TRANSACTIONAL"]
+      }
+      """
+    Then the campaign portal response status should be 400
+    And the campaign portal response field "errorCode" should be "INVALID_LABEL_COMBINATION"
+
+  Scenario: Update campaign labels successfully
+    When I create a campaign portal template:
+      """
+      {
+        "name": "Template 6",
+        "smsTemplates": [
+          {"languageId": #lang1, "text": "Hello"},
+          {"languageId": #lang2, "text": "مرحبا"}
+        ]
+      }
+      """
+    Then the campaign portal response status should be 201
+    And I save campaign portal response field "id" as "#tmpl1"
+
+    When I create a campaign portal campaign:
+      """
+      {
+        "name": "Campaign Update",
+        "templateId": #tmpl1,
+        "channels": ["SMS"],
+        "audienceMode": "OPEN",
+        "labels": ["ANNOUNCEMENT"]
+      }
+      """
+    Then the campaign portal response status should be 201
+    And I save campaign portal response field "id" as "#camp1"
+
+    When I update campaign portal campaign "#camp1":
+      """
+      {
+        "name": "Campaign Updated",
+        "templateId": #tmpl1,
+        "channels": ["SMS"],
+        "audienceMode": "OPEN",
+        "labels": ["NEW_PRODUCT"]
+      }
+      """
+    Then the campaign portal response status should be 200
+
+  Scenario: Reject invalid update labels combination
+    When I create a campaign portal template:
+      """
+      {
+        "name": "Template 7",
+        "smsTemplates": [
+          {"languageId": #lang1, "text": "Hello"},
+          {"languageId": #lang2, "text": "مرحبا"}
+        ]
+      }
+      """
+    Then the campaign portal response status should be 201
+    And I save campaign portal response field "id" as "#tmpl1"
+
+    When I create a campaign portal campaign:
+      """
+      {
+        "name": "Campaign Update Invalid",
+        "templateId": #tmpl1,
+        "channels": ["SMS"],
+        "audienceMode": "OPEN",
+        "labels": ["ANNOUNCEMENT"]
+      }
+      """
+    Then the campaign portal response status should be 201
+    And I save campaign portal response field "id" as "#camp1"
+
+    When I update campaign portal campaign "#camp1":
+      """
+      {
+        "name": "Fail Update",
+        "templateId": #tmpl1,
+        "channels": ["SMS"],
+        "audienceMode": "OPEN",
+        "labels": ["ANNOUNCEMENT", "TRANSACTIONAL"]
+      }
+      """
+    Then the campaign portal response status should be 400
