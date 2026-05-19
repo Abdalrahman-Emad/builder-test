@@ -1,134 +1,777 @@
-'use client'
+/*******campaign portal coverge features ****/
+@campaign-portal-e2e @cur
+Feature: Campaign Portal — Coverage scenarios for list, update, errors and audiences
 
-import React, { useState } from 'react'
+  Targets the largest uncovered branches in `service/`, `specifications/`,
+  and `controller/` packages: list/filter, update flows, error paths,
+  audience members upload+list, and CLOSED snapshotting
+  with real audience members.
 
-import { cn } from '../../../lib/utils'
-import { SUPPORTED_LANGUAGES } from './languageUtils'
+  Background:
+    Given a logged in user with id "inputter001" and roles "campaign-inputter"
+    And the campaign portal data is clean
+    And the central LANGUAGES table contains:
+      | id     | name    | code |
+      | #lang1 | English | en   |
+      | #lang2 | Arabic  | ar   |
 
-interface Props {
-  existingLanguages: number[]
-  onAdd: (languageId: number) => void
-  children: React.ReactNode
-}
+  #  List & filter campaigns 
+  Scenario: List campaigns with no filters returns created campaigns
+    When I create a campaign portal template:
+      """
+      { "name": "ListT1", "smsTemplates": [{"languageId": #lang1, "text": "hi"}, {"languageId": #lang2, "text": "مرحبا"}] }
+      """
+    And I save campaign portal response field "id" as "#tmpl1"
+    When I create a campaign portal campaign:
+      """
+      { "name": "Alpha Promo", "templateId": #tmpl1, "channels": ["SMS"], "audienceMode": "OPEN" }
+      """
+    And I save campaign portal response field "id" as "#camp1"
+    When I create a campaign portal campaign:
+      """
+      { "name": "Beta Blast", "templateId": #tmpl1, "channels": ["SMS"], "audienceMode": "OPEN" }
+      """
 
-export function AddLanguageDialog({
-  existingLanguages,
-  onAdd,
-  children,
-}: Props) {
-  const [open, setOpen] = useState(false)
-  const available = SUPPORTED_LANGUAGES.filter(
-    l => !existingLanguages.includes(l.id),
-  )
+    When I list campaign portal campaigns
+    Then the campaign portal response status should be 200
+    And the campaign portal response list at "data" should have 2 entries
 
-  const handleSelect = (id: number) => {
-    onAdd(id)
-    setOpen(false)
-  }
+  Scenario: Search campaigns by name, status and templateId
+    When I create a campaign portal template:
+      """
+      { "name": "T", "smsTemplates": [{"languageId": #lang1, "text": "hi"}, {"languageId": #lang2, "text": "مرحبا"}] }
+      """
+    And I save campaign portal response field "id" as "#tmpl1"
+    When I create a campaign portal campaign:
+      """
+      { "name": "Searchable Alpha", "templateId": #tmpl1, "channels": ["SMS"], "audienceMode": "OPEN" }
+      """
+    And I save campaign portal response field "id" as "#camp1"
+    When I create a campaign portal campaign:
+      """
+      { "name": "Other Beta", "templateId": #tmpl1, "channels": ["SMS"], "audienceMode": "OPEN" }
+      """
 
-  return (
-    <>
-      <span
-        onClick={() => setOpen(true)}
-        className="cursor-pointer"
-      >
-        {children}
-      </span>
+  Scenario: Search campaigns ignores blank name and createdBy filters
+    When I create a campaign portal template:
+      """
+      { "name": "BlankFilterTemplate", "smsTemplates": [{"languageId": #lang1, "text": "hi"}, {"languageId": #lang2, "text": "مرحبا"}] }
+      """
+    And I save campaign portal response field "id" as "#tmpl1"
+    When I create a campaign portal campaign:
+      """
+      { "name": "Blank Filter Alpha", "templateId": #tmpl1, "channels": ["SMS"], "audienceMode": "OPEN" }
+      """
+    When I create a campaign portal campaign:
+      """
+      { "name": "Blank Filter Beta", "templateId": #tmpl1, "channels": ["SMS"], "audienceMode": "OPEN" }
+      """
 
-      {open && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
-          {/* Overlay */}
-          <div
-            className="absolute inset-0 bg-black/50"
-            onClick={() => setOpen(false)}
-          />
+    # If query params are blank/whitespace, they should behave like "not provided"
+    When I search campaign portal campaigns with query "name=%20%20%20&createdBy=%20%20%20"
+    Then the campaign portal response status should be 200
+    And the campaign portal response list at "data" should have 2 entries
 
-          {/* Panel */}
-          <div className="relative z-10 w-80 rounded-xl border bg-card shadow-lg">
-            <div className="flex items-center justify-between border-b px-4 py-3">
-              <h3 className="font-semibold">Add Language</h3>
-              <button
-                type="button"
-                onClick={() => setOpen(false)}
-                className="text-muted-foreground hover:text-foreground"
-              >
-                ✕
-              </button>
-            </div>
+    # name LIKE filter (covers escape branches)
+    When I search campaign portal campaigns with query "name=Alpha"
+    Then the campaign portal response status should be 200
+    And the campaign portal response list at "data" should have 1 entries
 
-            <div className="p-2 max-h-80 overflow-y-auto">
-              {available.length === 0 ? (
-                <p className="px-3 py-4 text-sm text-muted-foreground text-center">
-                  All languages have been added.
-                </p>
-              ) : (
-                available.map(lang => (
-                  <button
-                    key={lang.id}
-                    type="button"
-                    onClick={() => handleSelect(lang.id)}
-                    className={cn(
-                      'flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm hover:bg-accent transition-colors',
-                    )}
-                  >
-                    <span className="text-base">{lang.flag}</span>
-                    <span>{lang.label}</span>
-                    <span className="ml-auto text-xs text-muted-foreground uppercase">
-                      ID: {lang.id}
-                    </span>
-                  </button>
-                ))
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-    </>
-  )
-}
-/////******************************************/
-                     import { ReactNode } from 'react'
+    # status filter
+    When I search campaign portal campaigns with query "statuses=DRAFT"
+    Then the campaign portal response status should be 200
+    And the campaign portal response list at "data" should have 2 entries
 
-import EgFlag from '../flags/Egypt'
-import USFlag from '../flags/US'
+    # templateId + createdBy filter
+    When I search campaign portal campaigns with query "templateId=#tmpl1&createdBy=CIBUser::inputter001"
+    Then the campaign portal response status should be 200
+    And the campaign portal response list at "data" should have 2 entries
 
-export interface LanguageOption {
-  id: number
-  label: string
-  flag: ReactNode
-}
+    # date range (open-ended)
+    When I search campaign portal campaigns with query "createdFrom=2020-01-01T00:00:00"
+    Then the campaign portal response status should be 200
 
-export const SUPPORTED_LANGUAGES: LanguageOption[] = [
-  {
-    id: 1,
-    label: 'العربية',
-    flag: (
-      <EgFlag
-        key="1"
-        width={20}
-        height={20}
-      />
-    ),
-  },
-  {
-    id: 2,
-    label: 'English',
-    flag: (
-      <USFlag
-        key="2"
-        width={20}
-        height={20}
-      />
-    ),
-  },
-]
+    When I search campaign portal campaigns with query "createdTo=2099-01-01T00:00:00"
+    Then the campaign portal response status should be 200
 
-export function getLanguageOption(id: number): LanguageOption {
-  return (
-    SUPPORTED_LANGUAGES.find(l => l.id === id) ?? {
-      id,
-      label: `ID ${id}`,
-      flag: <span>🌐</span>,
+    When I search campaign portal campaigns with query "createdFrom=2020-01-01T00:00:00&createdTo=2099-01-01T00:00:00&name=Beta"
+    Then the campaign portal response status should be 200
+    And the campaign portal response list at "data" should have 1 entries
+
+  Scenario: Export campaigns CSV
+    When I create a campaign portal template:
+      """
+      { "name": "T", "smsTemplates": [{"languageId": #lang1, "text": "hi"}, {"languageId": #lang2, "text": "مرحبا"}] }
+      """
+    And I save campaign portal response field "id" as "#tmpl1"
+    When I create a campaign portal campaign:
+      """
+      { "name": "Exportable \"Quoted\"", "templateId": #tmpl1, "channels": ["SMS"], "audienceMode": "OPEN" }
+      """
+
+    When I export campaign portal campaigns CSV
+    Then the campaign portal response status should be 200
+    And the campaign portal response body should contain "id,name,status"
+    And the campaign portal response body should contain "Exportable"
+
+  #  Update flows 
+  Scenario: Update a draft campaign
+    When I create a campaign portal template:
+      """
+      { "name": "UT1", "smsTemplates": [{"languageId": #lang1, "text": "hi"}, {"languageId": #lang2, "text": "مرحبا"}] }
+      """
+    And I save campaign portal response field "id" as "#tmpl1"
+    When I create a campaign portal template:
+      """
+      { "name": "UT2", "smsTemplates": [{"languageId": #lang1, "text": "bye"}, {"languageId": #lang2, "text": "مع السلامة"}] }
+      """
+    And I save campaign portal response field "id" as "#tmpl2"
+    When I create a campaign portal audience:
+      """
+      { "name": "A1", "platforms": ["IOS"], "userAssociations": ["REGISTERED"], "language": "en" }
+      """
+    And I save campaign portal response field "data.id" as "#aud1"
+    When I create a campaign portal campaign:
+      """
+      {
+        "name": "Original Name",
+        "templateId": #tmpl1,
+        "channels": ["SMS"],
+        "audienceMode": "OPEN"
+      }
+      """
+    And I save campaign portal response field "id" as "#camp1"
+
+    When I update campaign portal campaign "#camp1":
+      """
+      {
+        "name": "Updated Name",
+        "templateId": #tmpl2,
+        "channels": ["SMS", "PUSH"],
+        "audienceMode": "CLOSED",
+        "audienceIds": [#aud1]
+      }
+      """
+    Then the campaign portal response status should be 200
+    And the campaign portal response field "name" should be "Updated Name"
+    And the campaign portal response field "audienceMode" should be "CLOSED"
+
+  Scenario: Update an audience changes platforms and user associations
+    When I create a campaign portal audience:
+      """
+      { "name": "A", "platforms": ["IOS"], "userAssociations": ["REGISTERED"], "language": "en" }
+      """
+    And I save campaign portal response field "data.id" as "#aud1"
+
+    When I update campaign portal audience "#aud1":
+      """
+      { "name": "A2", "platforms": ["ANDROID", "IOS"], "userAssociations": ["ANONYMOUS"], "language": "ar" }
+      """
+    Then the campaign portal response status should be 200
+    And the campaign portal response field "name" should be "A2"
+
+    When I list all campaign portal audiences
+    Then the campaign portal response status should be 200
+    And the campaign portal response list at "data" should have 1 entries
+
+  Scenario: Update a template
+    When I create a campaign portal template:
+      """
+      { "name": "Old", "smsTemplates": [{"languageId": #lang1, "text": "hi"}, {"languageId": #lang2, "text": "مرحبا"}] }
+      """
+    And I save campaign portal response field "id" as "#tmpl1"
+    When I update campaign portal template "#tmpl1":
+      """
+      { "name": "New", "smsTemplates": [{"languageId": #lang1, "text": "hello again"}, {"languageId": #lang2, "text": "مرحبا مجددا"}] }
+      """
+    Then the campaign portal response status should be 200
+    And the campaign portal response field "name" should be "New"
+
+    When I list campaign portal templates
+    Then the campaign portal response status should be 200
+    And the campaign portal response list at "data" should have 1 entries
+
+  #  Error paths: 404 
+  Scenario: Get unknown campaign returns 404
+    When I get campaign portal campaign "999999"
+    Then the campaign portal response status should be 404
+    And the campaign portal response field "errorCode" should be "CAMPAIGN-0001"
+
+  Scenario: Approve unknown campaign returns 404
+    Given a logged in user with id "authorizer001" and roles "campaign-authorizer"
+    When I approve campaign "999999"
+    Then the campaign portal response status should be 404
+
+  Scenario: Reject unknown campaign returns 404
+    Given a logged in user with id "authorizer001" and roles "campaign-authorizer"
+    When I reject campaign "999999" with reason "x"
+    Then the campaign portal response status should be 404
+
+  Scenario: Delete unknown campaign returns 404
+    When I delete campaign portal campaign "999999"
+    Then the campaign portal response status should be 404
+
+  Scenario: Get unknown audience returns 404
+    When I get campaign portal audience "999999"
+    Then the campaign portal response status should be 404
+    And the campaign portal response field "errorCode" should be "CAMPAIGN-0003"
+
+  Scenario: Get unknown template returns 404
+    When I get campaign portal template "999999"
+    Then the campaign portal response status should be 404
+    And the campaign portal response field "errorCode" should be "CAMPAIGN-0002"
+
+  Scenario: Create campaign with unknown template returns 404
+    When I create a campaign portal campaign:
+      """
+      { "name": "X", "templateId": 999999, "channels": ["SMS"], "audienceMode": "OPEN" }
+      """
+    Then the campaign portal response status should be 404
+    And the campaign portal response field "errorCode" should be "CAMPAIGN-0002"
+
+  Scenario: Create campaign with unknown audience id returns 404
+    When I create a campaign portal template:
+      """
+      { "name": "T", "smsTemplates": [{"languageId": #lang1, "text": "hi"}, {"languageId": #lang2, "text": "مرحبا"}] }
+      """
+    And I save campaign portal response field "id" as "#tmpl1"
+    When I create a campaign portal campaign:
+      """
+      {
+        "name": "X",
+        "templateId": #tmpl1,
+        "channels": ["SMS"],
+        "audienceMode": "CLOSED",
+        "audienceIds": [999999]
+      }
+      """
+    Then the campaign portal response status should be 404
+    And the campaign portal response field "errorCode" should be "CAMPAIGN-0003"
+
+  #  Error paths: invalid status transitions 
+  Scenario: Cannot approve a campaign that is still in DRAFT
+    When I create a campaign portal template:
+      """
+      { "name": "T", "smsTemplates": [{"languageId": #lang1, "text": "hi"}, {"languageId": #lang2, "text": "مرحبا"}] }
+      """
+    And I save campaign portal response field "id" as "#tmpl1"
+    When I create a campaign portal campaign:
+      """
+      { "name": "C", "templateId": #tmpl1, "channels": ["SMS"], "audienceMode": "OPEN" }
+      """
+    And I save campaign portal response field "id" as "#camp1"
+
+    Given a logged in user with id "authorizer001" and roles "campaign-authorizer"
+    When I approve campaign "#camp1"
+    Then the campaign portal response status should be 400
+    And the campaign portal response field "errorCode" should be "CAMPAIGN-0005"
+
+  Scenario: Cannot reject a campaign that is still in DRAFT
+    When I create a campaign portal template:
+      """
+      { "name": "T", "smsTemplates": [{"languageId": #lang1, "text": "hi"}, {"languageId": #lang2, "text": "مرحبا"}] }
+      """
+    And I save campaign portal response field "id" as "#tmpl1"
+    When I create a campaign portal campaign:
+      """
+      { "name": "C", "templateId": #tmpl1, "channels": ["SMS"], "audienceMode": "OPEN" }
+      """
+    And I save campaign portal response field "id" as "#camp1"
+
+    Given a logged in user with id "authorizer001" and roles "campaign-authorizer"
+    When I reject campaign "#camp1" with reason "no"
+    Then the campaign portal response status should be 400
+    And the campaign portal response field "errorCode" should be "CAMPAIGN-0005"
+
+  #  Audience delete-in-use guard 
+  Scenario: Cannot delete an audience that is referenced by a campaign
+    When I create a campaign portal template:
+      """
+      { "name": "T", "smsTemplates": [{"languageId": #lang1, "text": "hi"}, {"languageId": #lang2, "text": "مرحبا"}] }
+      """
+    And I save campaign portal response field "id" as "#tmpl1"
+    When I create a campaign portal audience:
+      """
+      { "name": "InUse", "platforms": ["IOS"], "userAssociations": ["REGISTERED"], "language": "en" }
+      """
+    And I save campaign portal response field "data.id" as "#aud1"
+    When I create a campaign portal campaign:
+      """
+      {
+        "name": "Refs",
+        "templateId": #tmpl1,
+        "channels": ["SMS"],
+        "audienceMode": "OPEN",
+        "audienceIds": [#aud1]
+      }
+      """
+
+    When I delete campaign portal audience "#aud1"
+    Then the campaign portal response status should be 409
+    And the campaign portal response field "errorCode" should be "CAMPAIGN-0013"
+
+  #  Template delete-in-use guard 
+  Scenario: Cannot delete a template that is referenced by a campaign
+    When I create a campaign portal template:
+      """
+      { "name": "T", "smsTemplates": [{"languageId": #lang1, "text": "hi"}, {"languageId": #lang2, "text": "مرحبا"}] }
+      """
+    And I save campaign portal response field "id" as "#tmpl1"
+    When I create a campaign portal campaign:
+      """
+      { "name": "Refs", "templateId": #tmpl1, "channels": ["SMS"], "audienceMode": "OPEN" }
+      """
+
+    When I delete campaign portal template "#tmpl1"
+    Then the campaign portal response status should be 409
+    And the campaign portal response field "errorCode" should be "CAMPAIGN-0011"
+
+  Scenario: Delete an unused audience and template successfully
+    When I create a campaign portal audience:
+      """
+      { "name": "Solo", "platforms": ["IOS"], "userAssociations": ["REGISTERED"], "language": "en" }
+      """
+    And I save campaign portal response field "data.id" as "#aud1"
+    When I delete campaign portal audience "#aud1"
+    Then the campaign portal response status should be 204
+
+    When I create a campaign portal template:
+      """
+      { "name": "Solo", "smsTemplates": [{"languageId": #lang1, "text": "hi"}, {"languageId": #lang2, "text": "مرحبا"}] }
+      """
+    And I save campaign portal response field "id" as "#tmpl1"
+    When I delete campaign portal template "#tmpl1"
+    Then the campaign portal response status should be 204
+
+  Scenario: Search campaigns with escaped characters
+    When I create a campaign portal template:
+      """
+      { "name": "EscapedNameTemplate", "smsTemplates": [{"languageId": #lang1, "text": "hi"}, {"languageId": #lang2, "text": "مرحبا"}] }
+      """
+    And I save campaign portal response field "id" as "#tmpl1"
+    When I create a campaign portal campaign:
+      """
+      { "name": "Promo_100%_!", "templateId": #tmpl1, "channels": ["SMS"], "audienceMode": "OPEN" }
+      """
+    And I create a campaign portal campaign:
+      """
+      { "name": "Regular Promo", "templateId": #tmpl1, "channels": ["SMS"], "audienceMode": "OPEN" }
+      """
+    When I search campaign portal campaigns with query "name=Promo_100%25_!"
+    Then the campaign portal response status should be 200
+    And the campaign portal response list at "data" should have 1 entries
+
+  Scenario: Campaign search uses cursor pagination
+    When I create a campaign portal template:
+      """
+      { "name": "CursorTemplate", "smsTemplates": [{"languageId": #lang1, "text": "hi"}, {"languageId": #lang2, "text": "مرحبا"}] }
+      """
+    And I save campaign portal response field "id" as "#tmpl1"
+    When I create a campaign portal campaign:
+      """
+      { "name": "Cursor Alpha", "templateId": #tmpl1, "channels": ["SMS"], "audienceMode": "OPEN" }
+      """
+    And I create a campaign portal campaign:
+      """
+      { "name": "Cursor Beta", "templateId": #tmpl1, "channels": ["SMS"], "audienceMode": "OPEN" }
+      """
+    And I create a campaign portal campaign:
+      """
+      { "name": "Cursor Gamma", "templateId": #tmpl1, "channels": ["SMS"], "audienceMode": "OPEN" }
+      """
+    When I search campaign portal campaigns with query "size=2"
+    Then the campaign portal response status should be 200
+    And the campaign portal response list at "data" should have 2 entries
+    And the campaign portal response field "hasNext" should be "true"
+    And I save campaign portal response field "cursor" as "#cursor1"
+    When I search campaign portal campaigns with query "size=2&cursor=#cursor1"
+    Then the campaign portal response status should be 200
+    And the campaign portal response list at "data" should have 1 entries
+    And the campaign portal response field "hasNext" should be "false"
+
+  Scenario: Submitting a campaign without channels or audiences fails validation
+    When I create a campaign portal template:
+      """
+      { "name": "IncompleteTemplate", "smsTemplates": [{"languageId": #lang1, "text": "hi"}, {"languageId": #lang2, "text": "مرحبا"}] }
+      """
+    And I save campaign portal response field "id" as "#tmpl1"
+    When I create a campaign portal campaign:
+      """
+      { "name": "Incomplete Campaign", "templateId": #tmpl1, "audienceMode": "OPEN" }
+      """
+    And I save campaign portal response field "id" as "#camp1"
+    When I submit campaign "#camp1" for approval
+    Then the campaign portal response status should be 400
+    And the campaign portal response field "errorCode" should be "CAMPAIGN-0015"
+
+  Scenario: Closed campaign snapshots audience members at submit time
+    When I create a campaign portal template:
+      """
+      { "name": "SnapshotTemplate", "smsTemplates": [{"languageId": #lang1, "text": "hello"}, {"languageId": #lang2, "text": "مرحبا"}] }
+      """
+    And I save campaign portal response field "id" as "#tmpl1"
+    When I create a campaign portal audience:
+      """
+      { "name": "Snapshot Audience" }
+      """
+    Then the campaign portal response status should be 201
+    And I save campaign portal response field "data.id" as "#aud1"
+    When I upload audience members to "#aud1":
+      | userId | mobileNumber | customerNumber |
+      | u1     | 01010000001  | c1             |
+      | u2     | 01010000002  | c2             |
+    Then the campaign portal response status should be 201
+    When I list audience members for "#aud1"
+    Then the campaign portal response status should be 200
+    And the campaign portal response list at "data.data" should have 2 entries
+    When I create a campaign portal campaign:
+      """
+      { "name": "Snapshot Campaign", "templateId": #tmpl1, "channels": ["SMS"], "audienceMode": "CLOSED", "audienceIds": [#aud1] }
+      """
+    Then the campaign portal response status should be 201
+    And the campaign portal response field "audienceMode" should be "CLOSED"
+    And I save campaign portal response field "id" as "#camp1"
+    When I submit campaign "#camp1" for approval
+    Then the campaign portal response status should be 200
+    When I upload audience members to "#aud1":
+      | userId | mobileNumber | customerNumber |
+      | u3     | 01010000003  | c3             |
+    Then the campaign portal response status should be 201
+    Given a logged in user with id "authorizer001" and roles "campaign-authorizer"
+    When I approve campaign "#camp1"
+    Then the campaign portal response status should be 200
+    And the campaign portal response field "recipientCount" should be "2"
+    And the campaign portal response field "audienceMemberCount" should be "3"
+    And the campaign portal response field "audienceWarning" should be "Audience mode is CLOSED. The current audience members will be saved as a snapshot. New members added to the audience after this point will not be included."
+
+
+
+       /*************inbox message steps****************************/
+       package com.cibeg.digital.notifications.steps;
+
+import static io.restassured.RestAssured.given;
+import static org.assertj.core.api.Assertions.assertThat;
+
+import com.cibeg.one.testing.core.injector.TestDataHolder;
+import com.cibeg.one.testing.core.random.DataRandom;
+import io.cucumber.java.en.And;
+import io.cucumber.java.en.Given;
+import io.cucumber.java.en.Then;
+import io.cucumber.java.en.When;
+import io.jsonwebtoken.Jwts;
+import io.restassured.response.Response;
+import io.restassured.specification.RequestSpecification;
+import jakarta.inject.Inject;
+import java.io.StringReader;
+import java.security.KeyPair;
+import java.security.PrivateKey;
+import java.time.Duration;
+import java.time.Instant;
+import java.util.Date;
+import java.util.List;
+import java.util.Map;
+import lombok.SneakyThrows;
+import lombok.extern.slf4j.Slf4j;
+import org.bouncycastle.openssl.PEMKeyPair;
+import org.bouncycastle.openssl.PEMParser;
+import org.bouncycastle.openssl.jcajce.JcaPEMKeyConverter;
+
+@Slf4j
+public class InboxMessageSteps {
+
+    private static final String BASE_URL = "http://localhost:8480";
+
+    private final TestDataHolder testDataHolder;
+    private final DataRandom dataRandom;
+
+    @Inject
+    public InboxMessageSteps(
+            TestDataHolder testDataHolder, RequestSpecification api, DataRandom dataRandom) {
+        this.testDataHolder = testDataHolder;
+        this.dataRandom = dataRandom;
     }
-  )
+
+    // ---------- Token setup (re-uses iam access token from Background) ----------
+
+    @Given("I have an expired access token for user {string}")
+    public void i_have_an_expired_access_token(String userId) {
+        PrivateKey signingPrivateKey = loadPrivateKey(dataRandom.get("keypair.iam.privateKey"));
+        String token =
+                Jwts.builder()
+                        .subject("CIBUser::" + userId)
+                        .issuer("http://iam.digital.cibeg.com")
+                        .signWith(signingPrivateKey)
+                        .expiration(Date.from(Instant.now().minus(Duration.ofMinutes(2))))
+                        .compact();
+        testDataHolder.set("accessToken", token);
+    }
+
+    // ---------- Inbox HTTP calls ----------
+
+    @When("I GET inbox messages with the access token")
+    public void i_get_inbox_messages() {
+        Response r =
+                given().baseUri(BASE_URL)
+                        .header("Authorization", "Bearer " + testDataHolder.get("accessToken"))
+                        .when()
+                        .get("/notifications/v1/inbox-messages");
+        testDataHolder.set("lastResponse", r);
+    }
+
+    @When("I GET inbox messages with query {string} using the access token")
+    public void i_get_inbox_messages_with_query(String query) {
+        String decoded = java.net.URLDecoder.decode(query, java.nio.charset.StandardCharsets.UTF_8);
+        // store requested page/size so assertions can infer totalPages correctly
+        try {
+            java.util.Map<String, String> params = new java.util.HashMap<>();
+            for (String pair : decoded.split("&")) {
+                if (pair == null || pair.isEmpty()) continue;
+                int idx = pair.indexOf('=');
+                String k = idx >= 0 ? pair.substring(0, idx) : pair;
+                String v = idx >= 0 ? pair.substring(idx + 1) : "";
+                params.put(k, v);
+            }
+            if (params.containsKey("size")) {
+                try {
+                    testDataHolder.set("lastRequestSize", Integer.parseInt(params.get("size")));
+                } catch (NumberFormatException ignore) {
+                }
+            }
+            if (params.containsKey("page")) {
+                try {
+                    testDataHolder.set("lastRequestPage", Integer.parseInt(params.get("page")));
+                } catch (NumberFormatException ignore) {
+                }
+            }
+        } catch (Exception ignore) {
+        }
+
+        Response r =
+                given().baseUri(BASE_URL)
+                        .header("Authorization", "Bearer " + testDataHolder.get("accessToken"))
+                        .when()
+                        .get("/notifications/v1/inbox-messages?" + decoded);
+        testDataHolder.set("lastResponse", r);
+    }
+
+    @When("I GET inbox message with id stored as {string} using the access token")
+    public void i_get_inbox_message_by_stored_id(String placeholder) {
+        Object idValue = testDataHolder.get(placeholder);
+        Response r =
+                given().baseUri(BASE_URL)
+                        .header("Authorization", "Bearer " + testDataHolder.get("accessToken"))
+                        .when()
+                        .get("/notifications/v1/inbox-messages/" + idValue);
+        testDataHolder.set("lastResponse", r);
+    }
+
+    @When("I GET inbox message with id {long} using the access token")
+    public void i_get_inbox_message_by_id(long id) {
+        Response r =
+                given().baseUri(BASE_URL)
+                        .header("Authorization", "Bearer " + testDataHolder.get("accessToken"))
+                        .when()
+                        .get("/notifications/v1/inbox-messages/" + id);
+        testDataHolder.set("lastResponse", r);
+    }
+
+    @When("I GET inbox unread count using the access token")
+    public void i_get_inbox_unread_count() {
+        Response r =
+                given().baseUri(BASE_URL)
+                        .header("Authorization", "Bearer " + testDataHolder.get("accessToken"))
+                        .when()
+                        .get("/notifications/v1/inbox-messages/unread-count");
+        testDataHolder.set("lastResponse", r);
+    }
+
+    @When("I GET inbox messages without any authorization header")
+    public void i_get_inbox_messages_without_auth() {
+        Response r = given().baseUri(BASE_URL).when().get("/notifications/v1/inbox-messages");
+        testDataHolder.set("lastResponse", r);
+    }
+
+    // ---------- Response assertions ----------
+
+    @Then("the inbox response status should be {int}")
+    public void the_inbox_response_status_should_be(int expected) {
+        Response response = (Response) testDataHolder.get("lastResponse");
+        assertThat(response.getStatusCode()).isEqualTo(expected);
+    }
+
+    @And("the inbox response should have totalElements {long}")
+    public void the_inbox_response_should_have_total_elements(long expected) {
+        Response response = (Response) testDataHolder.get("lastResponse");
+        assertThat(response.jsonPath().getLong("totalElements")).isEqualTo(expected);
+    }
+
+    @And("the inbox response should have totalNumOfUnread {long}")
+    public void the_inbox_response_should_have_total_num_of_unread(long expected) {
+        Response response = (Response) testDataHolder.get("lastResponse");
+        assertThat(response.jsonPath().getLong("totalNumOfUnread")).isEqualTo(expected);
+    }
+
+    @And("the inbox response data should contain a message with title {string} and read {word}")
+    public void the_inbox_response_data_should_contain_a_message(String title, String readStr) {
+        boolean read = Boolean.parseBoolean(readStr);
+        Response response = (Response) testDataHolder.get("lastResponse");
+        List<Map<String, Object>> data = response.jsonPath().getList("data");
+        assertThat(data)
+                .as("Inbox data should contain message with title '" + title + "' read=" + read)
+                .anyMatch(
+                        m ->
+                                title.equals(m.get("title"))
+                                        && read == Boolean.TRUE.equals(m.get("read")));
+    }
+
+    @And("the inbox response data should not contain a message with title {string}")
+    public void the_inbox_response_data_should_not_contain_a_message(String title) {
+        Response response = (Response) testDataHolder.get("lastResponse");
+        List<Map<String, Object>> data = response.jsonPath().getList("data");
+        assertThat(data)
+                .as("Inbox data should NOT contain message with title '" + title + "'")
+                .noneMatch(m -> title.equals(m.get("title")));
+    }
+
+    @And(
+            "the inbox response pagination should have count {int} totalPages {int} first {word} last {word}")
+    public void the_inbox_response_pagination_should_have(
+            int count, int totalPages, String firstStr, String lastStr) {
+        boolean first = Boolean.parseBoolean(firstStr);
+        boolean last = Boolean.parseBoolean(lastStr);
+        Response response = (Response) testDataHolder.get("lastResponse");
+        Integer actualCount =
+                response.jsonPath().get("pagination.count") == null
+                        ? 0
+                        : response.jsonPath().getInt("pagination.count");
+        Integer actualTotalPages = response.jsonPath().get("pagination.totalPages");
+        Boolean actualFirst = response.jsonPath().get("pagination.first");
+        Boolean actualLast = response.jsonPath().get("pagination.last");
+        Integer nextPage = response.jsonPath().get("pagination.nextPage");
+
+        // Retrieve requested size/page from the prior request if available
+        Integer requestedSize = null;
+        Integer requestedPage = null;
+        try {
+            Object sizeObj = testDataHolder.get("lastRequestSize");
+            if (sizeObj instanceof Integer) requestedSize = (Integer) sizeObj;
+            else if (sizeObj != null) requestedSize = Integer.parseInt(sizeObj.toString());
+        } catch (Exception ignore) {
+        }
+        try {
+            Object pageObj = testDataHolder.get("lastRequestPage");
+            if (pageObj instanceof Integer) requestedPage = (Integer) pageObj;
+            else if (pageObj != null) requestedPage = Integer.parseInt(pageObj.toString());
+        } catch (Exception ignore) {
+        }
+
+        // Try to infer totalPages, first, last if missing
+        if (actualTotalPages == null) {
+            Integer totalElements = response.jsonPath().get("totalElements");
+            if (totalElements != null && totalElements == 0) {
+                actualTotalPages = 0;
+            } else if (totalElements != null && requestedSize != null && requestedSize > 0) {
+                actualTotalPages = (int) Math.ceil((double) totalElements / requestedSize);
+            } else if (nextPage != null) {
+                actualTotalPages = nextPage + 1;
+            } else if (actualCount != null && actualCount == 0) {
+                actualTotalPages = 0;
+            } else {
+                actualTotalPages = 1;
+            }
+        }
+
+        // Determine current page: prefer explicit requestedPage, else derive from nextPage
+        int currentPage = 0;
+        if (requestedPage != null) {
+            currentPage = requestedPage;
+        } else if (nextPage != null) {
+            currentPage = Math.max(0, nextPage - 1);
+        }
+
+        if (actualFirst == null) {
+            if (actualTotalPages != null && actualTotalPages == 0) {
+                actualFirst = true;
+            } else {
+                actualFirst = currentPage == 0;
+            }
+        }
+
+        if (actualLast == null) {
+            if (actualTotalPages != null && actualTotalPages == 0) {
+                actualLast = true;
+            } else if (actualTotalPages != null) {
+                actualLast = (currentPage == actualTotalPages - 1);
+            } else {
+                actualLast = nextPage == null;
+            }
+        }
+        assertThat(actualCount).as("pagination.count").isEqualTo(count);
+        assertThat(actualTotalPages).as("pagination.totalPages").isEqualTo(totalPages);
+        assertThat(actualFirst).as("pagination.first").isEqualTo(first);
+        assertThat(actualLast).as("pagination.last").isEqualTo(last);
+    }
+
+    @And("the inbox detail labels should contain {string}")
+    public void the_inbox_detail_labels_should_contain(String label) {
+        Response response = (Response) testDataHolder.get("lastResponse");
+        List<String> labels = response.jsonPath().getList("labels");
+        assertThat(labels).as("inbox detail labels").contains(label);
+    }
+
+    @And("the inbox detail body should equal {string}")
+    public void the_inbox_detail_body_should_equal(String body) {
+        Response response = (Response) testDataHolder.get("lastResponse");
+        assertThat(response.jsonPath().getString("body")).isEqualTo(body);
+    }
+
+    @And("I store the first inbox message id as {string}")
+    @SuppressWarnings("unchecked")
+    public void i_store_the_first_inbox_message_id_as(String placeholder) {
+        Response response = (Response) testDataHolder.get("lastResponse");
+        Object first = response.jsonPath().getList("data").get(0);
+        Object id = ((Map<String, Object>) first).get("id");
+        long idValue = id instanceof Integer ? ((Integer) id).longValue() : (Long) id;
+        testDataHolder.set(placeholder, idValue);
+    }
+
+    @And("the inbox detail should have title {string} and body {string} and read {word}")
+    public void the_inbox_detail_should_have(String title, String body, String readStr) {
+        boolean read = Boolean.parseBoolean(readStr);
+        Response response = (Response) testDataHolder.get("lastResponse");
+        assertThat(response.jsonPath().getString("title")).isEqualTo(title);
+        assertThat(response.jsonPath().getString("body")).isEqualTo(body);
+        assertThat(response.jsonPath().getBoolean("read")).isEqualTo(read);
+    }
+
+    @And("the inbox detail should have totalNumOfUnread {long}")
+    public void the_inbox_detail_should_have_total_num_of_unread(long expected) {
+        Response response = (Response) testDataHolder.get("lastResponse");
+        assertThat(response.jsonPath().getLong("totalNumOfUnread")).isEqualTo(expected);
+    }
+
+    @And("the unread count response unReadCount should be {long}")
+    public void the_unread_count_response_should_be(long expected) {
+        Response response = (Response) testDataHolder.get("lastResponse");
+        assertThat(response.jsonPath().getLong("unReadCount")).isEqualTo(expected);
+    }
+
+    @And("the inbox error code should be {string}")
+    public void the_inbox_error_code_should_be(String expectedCode) {
+        Response response = (Response) testDataHolder.get("lastResponse");
+        assertThat(response.getBody().asString()).contains(expectedCode);
+    }
+
+    @SneakyThrows
+    private static PrivateKey loadPrivateKey(String pem) {
+        try (PEMParser parser = new PEMParser(new StringReader(pem))) {
+            Object object = parser.readObject();
+            JcaPEMKeyConverter converter = new JcaPEMKeyConverter();
+            if (object instanceof PEMKeyPair) {
+                KeyPair kp = converter.getKeyPair((PEMKeyPair) object);
+                return kp.getPrivate();
+            }
+            return converter.getPrivateKey((org.bouncycastle.asn1.pkcs.PrivateKeyInfo) object);
+        }
+    }
 }
