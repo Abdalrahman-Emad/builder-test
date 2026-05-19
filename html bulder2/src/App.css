@@ -1,102 +1,170 @@
-package com.cib.digital.notifications.api.validation;
+@campaign-portal-labels
+Feature: Campaign Labels
 
-import com.cib.digital.notifications.api.dto.campaign.CampaignLabel;
-import jakarta.validation.ConstraintValidator;
-import jakarta.validation.ConstraintValidatorContext;
+  Background:
+    Given a logged in user with id "paga999339" and roles "campaign-inputter"
+    And the campaign portal data is clean
+    And the central LANGUAGES table contains:
+      | id     | name    | code |
+      | #lang1 | English | en   |
+      | #lang2 | Arabic  | ar   |
 
-import java.util.EnumSet;
-import java.util.List;
+  Scenario: Create campaign with labels
+    When I create a campaign portal template:
+      """
+      {
+        "name": "Labels Template",
+        "smsTemplates": [
+          {"languageId": #lang1, "text": "Hello"},
+          {"languageId": #lang2, "text": "مرحبا"}
+        ]
+      }
+      """
+    Then the campaign portal response status should be 201
+    And I save campaign portal response field "id" as "#tmpl1"
 
-public class CampaignLabelsValidator implements ConstraintValidator<ValidCampaignLabels, List<CampaignLabel>> {
+    When I create a campaign portal campaign:
+      """
+      {
+        "name": "Campaign With Labels",
+        "templateId": #tmpl1,
+        "channels": ["SMS"],
+        "audienceMode": "OPEN",
+        "labels": ["ANNOUNCEMENT", "TRANSACTIONAL"]
+      }
+      """
+    Then the campaign portal response status should be 201
+    And the campaign portal response field "labels[0]" should be "ANNOUNCEMENT"
+    And the campaign portal response field "labels[1]" should be "TRANSACTIONAL"
+    And I save campaign portal response field "id" as "#camp1"
 
-    @Override
-    public boolean isValid(List<CampaignLabel> labels, ConstraintValidatorContext context) {
-        if (labels == null || labels.isEmpty()) {
-            return true; // allow no labels
-        }
+    When I get campaign portal campaign "#camp1"
+    Then the campaign portal response status should be 200
+    And the campaign portal response field "data.labels[0]" should be "ANNOUNCEMENT"
+    And the campaign portal response field "data.labels[1]" should be "TRANSACTIONAL"
 
-        EnumSet<CampaignLabel> set = EnumSet.copyOf(labels);
+  Scenario: Update campaign labels
+    When I create a campaign portal template:
+      """
+      {
+        "name": "Update Labels Template",
+        "smsTemplates": [
+          {"languageId": #lang1, "text": "Hello"},
+          {"languageId": #lang2, "text": "مرحبا"}
+        ]
+      }
+      """
+    Then the campaign portal response status should be 201
+    And I save campaign portal response field "id" as "#tmpl1"
 
-        // RULE: ANNOUNCEMENT and TRANSACTIONAL cannot coexist
-        if (set.contains(CampaignLabel.ANNOUNCEMENT)
-                && set.contains(CampaignLabel.TRANSACTIONAL)) {
-            return false;
-        }
+    When I create a campaign portal campaign:
+      """
+      {
+        "name": "Campaign Before Update",
+        "templateId": #tmpl1,
+        "channels": ["SMS"],
+        "audienceMode": "OPEN",
+        "labels": ["ANNOUNCEMENT"]
+      }
+      """
+    Then the campaign portal response status should be 201
+    And I save campaign portal response field "id" as "#camp1"
 
-        return true;
-    }
-}
+    When I update campaign portal campaign "#camp1":
+      """
+      {
+        "name": "Campaign After Update",
+        "templateId": #tmpl1,
+        "channels": ["SMS"],
+        "audienceMode": "OPEN",
+        "labels": ["TRANSACTIONAL"]
+      }
+      """
+    Then the campaign portal response status should be 200
+    And the campaign portal response field "labels[0]" should be "TRANSACTIONAL"
 
+    When I get campaign portal campaign "#camp1"
+    Then the campaign portal response status should be 200
+    And the campaign portal response field "data.labels[0]" should be "TRANSACTIONAL"
 
-/***********ValidCampaignLabels.java*********/
-package com.cib.digital.notifications.api.validation;
+  Scenario: Campaign without labels still works
+    When I create a campaign portal template:
+      """
+      {
+        "name": "No Labels Template",
+        "smsTemplates": [
+          {"languageId": #lang1, "text": "Hello"},
+          {"languageId": #lang2, "text": "مرحبا"}
+        ]
+      }
+      """
+    Then the campaign portal response status should be 201
+    And I save campaign portal response field "id" as "#tmpl1"
 
-import jakarta.validation.Constraint;
-import jakarta.validation.Payload;
+    When I create a campaign portal campaign:
+      """
+      {
+        "name": "Campaign Without Labels",
+        "templateId": #tmpl1,
+        "channels": ["SMS"],
+        "audienceMode": "OPEN"
+      }
+      """
+    Then the campaign portal response status should be 201
+    And the campaign portal response field "name" should be "Campaign Without Labels"
+    And I save campaign portal response field "id" as "#camp1"
 
-import java.lang.annotation.*;
+    When I get campaign portal campaign "#camp1"
+    Then the campaign portal response status should be 200
 
-@Constraint(validatedBy = CampaignLabelsValidator.class)
-@Target({ElementType.FIELD})
-@Retention(RetentionPolicy.RUNTIME)
-public @interface ValidCampaignLabels {
+  Scenario: Cannot create campaign with conflicting labels ANNOUNCEMENT and TRANSACTIONAL
+    When I create a campaign portal template:
+      """
+      {
+        "name": "Labels Template",
+        "smsTemplates": [
+          {"languageId": #lang1, "text": "hello"},
+          {"languageId": #lang2, "text": "مرحبا"}
+        ]
+      }
+      """
+    Then the campaign portal response status should be 201
+    And I save campaign portal response field "id" as "#tmpl1"
 
-    String message() default "Invalid label combination";
+    When I create a campaign portal campaign:
+      """
+      {
+        "name": "Invalid Labels Campaign",
+        "templateId": #tmpl1,
+        "channels": ["SMS"],
+        "audienceMode": "OPEN",
+        "labels": ["ANNOUNCEMENT", "TRANSACTIONAL"]
+      }
+      """
+    Then the campaign portal response status should be 400
 
-    Class<?>[] groups() default {};
+  Scenario: Campaign allows valid label combinations
+    When I create a campaign portal template:
+      """
+      {
+        "name": "Valid Labels Template",
+        "smsTemplates": [
+          {"languageId": #lang1, "text": "hello"},
+          {"languageId": #lang2, "text": "مرحبا"}
+        ]
+      }
+      """
+    Then the campaign portal response status should be 201
+    And I save campaign portal response field "id" as "#tmpl1"
 
-    Class<? extends Payload>[] payload() default {};
-}
-/************valid test****/
-Scenario: Cannot create campaign with conflicting labels ANNOUNCEMENT and TRANSACTIONAL
-  When I create a campaign portal template:
-    """
-    {
-      "name": "Labels Template",
-      "smsTemplates": [
-        {"languageId": #lang1, "text": "hello"},
-        {"languageId": #lang2, "text": "مرحبا"}
-      ]
-    }
-    """
-  Then the campaign portal response status should be 201
-  And I save campaign portal response field "id" as "#tmpl1"
-
-  When I create a campaign portal campaign:
-    """
-    {
-      "name": "Invalid Labels Campaign",
-      "templateId": #tmpl1,
-      "channels": ["SMS"],
-      "audienceMode": "OPEN",
-      "labels": ["ANNOUNCEMENT", "TRANSACTIONAL"]
-    }
-    """
-  Then the campaign portal response status should be 400
-
-
-            Scenario: Campaign allows valid label combinations
-  When I create a campaign portal template:
-    """
-    {
-      "name": "Valid Labels Template",
-      "smsTemplates": [
-        {"languageId": #lang1, "text": "hello"},
-        {"languageId": #lang2, "text": "مرحبا"}
-      ]
-    }
-    """
-  Then the campaign portal response status should be 201
-  And I save campaign portal response field "id" as "#tmpl1"
-
-  When I create a campaign portal campaign:
-    """
-    {
-      "name": "Valid Labels Campaign",
-      "templateId": #tmpl1,
-      "channels": ["SMS"],
-      "audienceMode": "OPEN",
-      "labels": ["NEW_PRODUCT", "TRANSACTIONAL"]
-    }
-    """
-  Then the campaign portal response status should be 201
+    When I create a campaign portal campaign:
+      """
+      {
+        "name": "Valid Labels Campaign",
+        "templateId": #tmpl1,
+        "channels": ["SMS"],
+        "audienceMode": "OPEN",
+        "labels": ["NEW_PRODUCT", "TRANSACTIONAL"]
+      }
+      """
+    Then the campaign portal response status should be 201
