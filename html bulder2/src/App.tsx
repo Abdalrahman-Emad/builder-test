@@ -1,3 +1,8 @@
+XHR
+GET
+http://localhost:8480/notifications/v1/templates/NaN
+[HTTP/1.1 500 Internal Server Error 13ms]
+
 'use client'
 
 import { useRouter } from 'next/navigation'
