@@ -47,3 +47,56 @@ public @interface ValidCampaignLabels {
 
     Class<? extends Payload>[] payload() default {};
 }
+/************valid test****/
+Scenario: Cannot create campaign with conflicting labels ANNOUNCEMENT and TRANSACTIONAL
+  When I create a campaign portal template:
+    """
+    {
+      "name": "Labels Template",
+      "smsTemplates": [
+        {"languageId": #lang1, "text": "hello"},
+        {"languageId": #lang2, "text": "مرحبا"}
+      ]
+    }
+    """
+  Then the campaign portal response status should be 201
+  And I save campaign portal response field "id" as "#tmpl1"
+
+  When I create a campaign portal campaign:
+    """
+    {
+      "name": "Invalid Labels Campaign",
+      "templateId": #tmpl1,
+      "channels": ["SMS"],
+      "audienceMode": "OPEN",
+      "labels": ["ANNOUNCEMENT", "TRANSACTIONAL"]
+    }
+    """
+  Then the campaign portal response status should be 400
+
+
+            Scenario: Campaign allows valid label combinations
+  When I create a campaign portal template:
+    """
+    {
+      "name": "Valid Labels Template",
+      "smsTemplates": [
+        {"languageId": #lang1, "text": "hello"},
+        {"languageId": #lang2, "text": "مرحبا"}
+      ]
+    }
+    """
+  Then the campaign portal response status should be 201
+  And I save campaign portal response field "id" as "#tmpl1"
+
+  When I create a campaign portal campaign:
+    """
+    {
+      "name": "Valid Labels Campaign",
+      "templateId": #tmpl1,
+      "channels": ["SMS"],
+      "audienceMode": "OPEN",
+      "labels": ["NEW_PRODUCT", "TRANSACTIONAL"]
+    }
+    """
+  Then the campaign portal response status should be 201
