@@ -1,226 +1,847 @@
-@campaign-portal-e2e @labels
-Feature: Campaign Labels
+'use client'
 
-  Background:
-    Given a logged in user with id "inputter001" and roles "campaign-inputter"
-    And the campaign portal data is clean
-    And the central LANGUAGES table contains:
-      | id     | name    | code |
-      | #lang1 | English | en   |
-      | #lang2 | Arabic  | ar   |
+import { useRouter } from 'next/navigation'
+import { useDispatch, useSelector } from 'react-redux'
+import { useEffect, useRef } from 'react'
+import {
+  setBuilderResult,
+  clearBuilderPendingLoad,
+} from '../../../../../../../../packages/feature-notifications/src/state/builderSlice'
+import { reducerManager } from '@cib/redux-store'
+import builderResultReducer from '../../../../../../../../packages/feature-notifications/src/state/builderSlice'
+import type { RootState } from '@cib/redux-store'
+import { TemplateBuilderPage } from '@cib/feature-notifictions'
+import type { TemplateSavePayload } from '../../../../../../../../packages/feature-notifications/src/app/components/template-builder/templateBuilder.types'
 
-  Scenario: Create campaign with labels
-    When I create a campaign portal template:
-      """
-      {
-        "name": "Labels Template",
-        "smsTemplates": [
-          {"languageId": #lang1, "text": "hello"},
-          {"languageId": #lang2, "text": "مرحبا"}
-        ]
+reducerManager.add('builderResult', builderResultReducer)
+
+export default function TemplateBuilderRoute() {
+  const router = useRouter()
+  const dispatch = useDispatch()
+
+  const pendingLoad = useSelector(
+    (s: RootState) =>
+      (s as any).builderResult?.pendingLoad as { html: string } | null
+  )
+
+  const initialTemplate: TemplateSavePayload | null = pendingLoad
+    ? {
+        templateKey: '',
+        name: '',
+        version: 1,
+        html: pendingLoad.html,
+        project: null,
+        variables: [],
       }
-      """
-    And I save campaign portal response field "id" as "#tmpl1"
+    : null
 
-    When I create a campaign portal campaign:
-      """
-      {
-        "name": "Campaign With Labels",
-        "templateId": #tmpl1,
-        "channels": ["SMS"],
-        "audienceMode": "OPEN",
-        "labels": ["ANNOUNCEMENT", "TRANSACTIONAL"]
+  const consumed = useRef(false)
+  useEffect(() => {
+    if (pendingLoad && !consumed.current) {
+      consumed.current = true
+      dispatch(clearBuilderPendingLoad())
+    }
+  }, [pendingLoad, dispatch])
+
+  return (
+    <TemplateBuilderPage
+      initialTemplate={initialTemplate}
+      onBack={() => router.back()}
+      onSave={async (payload) => {
+        // Only store the HTML now, no languageId
+        dispatch(setBuilderResult({ html: payload.html }))
+        router.push('/templatebuilder')
+      }}
+    />
+  )
+}
+/*******editor*************/
+"use client";
+
+import {
+  Button,
+  FieldError,
+  FieldLabel,
+  Input,
+  Label,
+  Textarea,
+} from "@cib/design-system-components";
+import { zodResolver } from "@hookform/resolvers/zod";
+import React, { useEffect, useState } from "react";
+import { Control, useFieldArray, useForm, useWatch } from "react-hook-form";
+
+import { useRouter } from "next/navigation";
+
+import {
+  MessageTemplate,
+  useCreateMessageTemplateMutation,
+  useUpdateMessageTemplateMutation,
+} from "../../../state/templatesSlice";
+import {
+  InboxTemplateRequestDto,
+  PushTemplateRequestDto,
+  SmsTemplateRequestDto,
+  TemplateContentRequestDto,
+} from "../../../state/types";
+import { Switch } from "../chadcn components";
+import { AddLanguageDialog } from "./AddLanguageDialog";
+import { getLanguageOption } from "./languageUtils";
+import { TemplateFormData, templateFormSchema } from "./schema";
+import { useDispatch } from "react-redux";
+import { reducerManager } from "@cib/redux-store";
+import builderResultReducer , {setBuilderPendingLoad} from '../../../state/builderSlice'
+
+reducerManager.add('builderResult', builderResultReducer)
+
+
+function cn(...classes: (string | undefined | null | false)[]) {
+  return classes.filter(Boolean).join(" ");
+}
+
+function makeEmptyContent(languageId: number): TemplateContentRequestDto {
+  return { languageId, text: "", title: "" };
+}
+
+function makeEmptySms(languageId: number): SmsTemplateRequestDto {
+  return { languageId, text: "" };
+}
+
+function makeEmptyPush(languageId: number): PushTemplateRequestDto {
+  return { languageId, title: "", text: "" };
+}
+
+function makeEmptyInbox(languageId: number): InboxTemplateRequestDto {
+  return { languageId, subject: "", text: "" };
+}
+
+type ActiveChannel = "sms" | "push" | "inbox";
+
+interface Props {
+  template?: MessageTemplate;
+  onSaved?: (saved: MessageTemplate) => void;
+  onCancel?: () => void;
+  refetch: () => void;
+
+  html?: string;
+}
+
+export function TemplateEditor({
+  template,
+  onSaved,
+  onCancel,
+  refetch,
+  html,
+}: Props) {
+  const isNew = !template;
+
+  const {
+    register,
+    handleSubmit,
+    control,
+    watch,
+    setValue,
+    formState: { errors, isSubmitting },
+  } = useForm<TemplateFormData>({
+    resolver: zodResolver(templateFormSchema),
+    defaultValues: {
+      name: template?.name ?? "",
+      description: template?.description ?? "",
+      contents: template?.contents?.map((c) => ({
+        languageId: c.languageId,
+        title: c.title ?? "",
+        text: c.text,
+      })) ?? [makeEmptyContent(1), makeEmptyContent(2)],
+      smsTemplates:
+        template?.smsTemplates?.map((s) => ({
+          languageId: s.languageId,
+          text: s.text,
+        })) ?? [],
+      pushTemplates:
+        template?.pushTemplates?.map((p) => ({
+          languageId: p.languageId,
+          title: p.title ?? "",
+          text: p.text,
+        })) ?? [],
+      inboxTemplates:
+        template?.inboxTemplates?.map((i) => ({
+          languageId: i.languageId,
+          subject: i.subject,
+          text: i.text,
+        })) ?? [],
+    },
+  });
+
+  const {
+    fields: contentFields,
+    append: appendContent,
+    remove: removeContent,
+  } = useFieldArray({ control, name: "contents" });
+
+  // eslint-disable-next-line react-hooks/incompatible-library
+  const watchedContents = watch("contents");
+  const languageIds = watchedContents.map((c) => c.languageId);
+  // const [activeLangId, setActiveLangId] = useState<number>(languageIds[0] ?? 1);
+  // const [activeLangIds, setActiveLangIds] = useState<number[]>([1,2])
+  const [ activeLangId, setactiveLangId ] = useState<number>(1);
+
+  const [activeChannel, setActiveChannel] = useState<ActiveChannel>("sms");
+
+  const [createTemplate] = useCreateMessageTemplateMutation();
+  const [updateTemplate] = useUpdateMessageTemplateMutation();
+
+  const isSaving = isSubmitting;
+
+  const activeContentIndex = contentFields.findIndex(
+    (c) => c.languageId === activeLangId,
+  );
+
+   useEffect(() => {
+    if (!languageIds.includes(activeLangId) && languageIds.length > 0) {
+      const first = languageIds[0];
+      if (first !== undefined) {
+       setactiveLangId(first)
       }
-      """
-    Then the campaign portal response status should be 201
-    And I save campaign portal response field "id" as "#camp1"
+    
+    }
+  }, [languageIds, activeLangId]);
 
-    When I get campaign portal campaign "#camp1"
-    Then the campaign portal response status should be 200
-    And the campaign portal response field "labels[0]" should be "ANNOUNCEMENT"
-    And the campaign portal response field "labels[1]" should be "TRANSACTIONAL"
+  useEffect(() => {
+    if (!html) return;
 
-  Scenario: Get campaign returns labels
-    When I create a campaign portal template:
-      """
-      {
-        "name": "Labels Template",
-        "smsTemplates": [
-          {"languageId": #lang1, "text": "hello"},
-          {"languageId": #lang2, "text": "مرحبا"}
-        ]
+    const inboxTemplates = watch("inboxTemplates") ?? [];
+
+    const inboxIndex = inboxTemplates.findIndex(
+      (t) => t.languageId === activeLangId,
+    );
+
+    if (inboxIndex > -1) {
+      setValue(`inboxTemplates.${inboxIndex}.text`, html);
+    }
+  }, [html, activeLangId, setValue, watch]);
+
+  const handleAddLanguage = (languageId: number) => {
+    appendContent(makeEmptyContent(languageId));
+    // setActiveLangIds((prev)=> [...prev, languageId]);
+    setactiveLangId(languageId)
+  };
+
+  const handleRemoveLanguage = (languageId: number) => {
+    const contentIndex = contentFields.findIndex(
+      (c) => c.languageId === languageId,
+    );
+    if (contentIndex > -1) {
+      removeContent(contentIndex);
+    }
+
+    if (activeLangId === languageId) {
+      const remaining = watchedContents.filter(
+        (c) => c.languageId !== languageId,
+      );
+          setactiveLangId(remaining[0]?.languageId ?? 1)
+     }
+  };
+
+
+  const onSubmit = async (data: TemplateFormData) => {
+    try {
+      let saved: MessageTemplate;
+      if (isNew) {
+        saved = await createTemplate(data).unwrap();
+      } else {
+        saved = await updateTemplate({ id: template!.id, dto: data }).unwrap();
       }
-      """
-    And I save campaign portal response field "id" as "#tmpl1"
+      onSaved?.(saved);
+      refetch();
+    } catch {
+      // error handling
+    }
+  };
 
-    When I create a campaign portal campaign:
-      """
-      {
-        "name": "Campaign Labels Get",
-        "templateId": #tmpl1,
-        "channels": ["SMS"],
-        "audienceMode": "OPEN",
-        "labels": ["ANNOUNCEMENT"]
+  console.log(template)
+
+  return (
+    <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col h-full">
+      {/* Top bar */}
+      <div className="flex items-center justify-between border-b px-6 py-4">
+        <h2 className="text-lg font-semibold">
+          {isNew ? "New template" : "Edit template"}
+        </h2>
+        <div className="flex gap-2">
+          {onCancel && (
+            <button
+              type="button"
+              onClick={onCancel}
+              className="rounded-md border px-4 py-1.5 text-sm font-medium hover:bg-accent transition-colors"
+            >
+              Cancel
+            </button>
+          )}
+          <Button
+            type="submit"
+            disabled={isSaving}
+            variant="default"
+            className="px-4 py-1.5 text-sm font-medium"
+          >
+            {isSaving ? "Saving…" : "Save"}
+          </Button>
+        </div>
+      </div>
+
+      {/* Scrollable body */}
+      <div className="flex-1 overflow-y-auto p-6 space-y-6">
+        {/* Name, Description, Title inputs */}
+        <div>
+          <Label>Name</Label>
+          <Input
+            placeholder="Template name"
+            {...register("name")}
+            aria-invalid={!!errors.name}
+          />
+          {errors.name && <FieldError>{errors.name.message}</FieldError>}
+        </div>
+        <div>
+          <Label>Description</Label>
+          <Input
+            placeholder="Short description of this template"
+            {...register("description")}
+          />
+        </div>
+
+        {/* Language tabs */}
+        <div className="flex flex-wrap items-center gap-2">
+          {/* ... globe icon ... */}
+          {languageIds.map((langId) => {
+            const opt = getLanguageOption(langId);
+            return (
+              <LanguagePill
+                key={langId}
+                flag={opt.flag}
+                label={opt.label}
+               active={activeLangId === langId}
+               onClick={()=> setactiveLangId(langId)}
+              />
+            );
+          })}
+          <AddLanguageDialog
+            existingLanguages={languageIds}
+            onAdd={handleAddLanguage}
+          >
+            <span className="inline-flex items-center gap-1 rounded-full border border-dashed px-3 py-1 text-sm text-muted-foreground hover:border-primary hover:text-primary transition-colors">
+              + Add language
+            </span>
+          </AddLanguageDialog>
+          {errors.contents && (
+            <FieldError>{errors.contents.message}</FieldError>
+          )}
+        </div>
+
+        {/* Generic template for selected language */}
+        {activeContentIndex > -1 && (
+          <div key={activeLangId} className="rounded-lg border bg-card">
+            <div className="flex items-center gap-2 border-b px-4 py-3">
+              {/* ... header ... */}
+              <span className="font-semibold text-sm">Generic template</span>
+              {languageIds.length > 1 && (
+                <button
+                  type="button"
+                  onClick={() => handleRemoveLanguage(activeLangId)}
+                  className="ml-auto text-xs text-destructive hover:underline"
+                >
+                  Remove language
+                </button>
+              )}
+            </div>
+            <div className="p-4 space-y-4">
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+                  Title
+                </label>
+                <Input
+                  placeholder="Notification title"
+                  {...register(`contents.${activeContentIndex}.title`)}
+                  aria-invalid={!!errors.contents?.[activeContentIndex]?.title}
+                />
+                {errors.contents?.[activeContentIndex]?.title && (
+                  <FieldError>
+                    {errors.contents?.[activeContentIndex]?.title?.message}
+                  </FieldError>
+                )}
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+                  Body
+                </label>
+                <Textarea
+                  rows={5}
+                  placeholder="Message content. Use {{variable}} for dynamic placeholders."
+                  {...register(`contents.${activeContentIndex}.text`)}
+                  aria-invalid={!!errors.contents?.[activeContentIndex]?.text}
+                />
+                {errors.contents?.[activeContentIndex]?.text && (
+                  <FieldError>
+                    {errors.contents?.[activeContentIndex]?.text?.message}
+                  </FieldError>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+        {/* TODO: Add editors for SMS, Push, and Inbox templates */}
+        <ChannelTemplateEditors
+          key={`channel-editors-${activeLangId}`}
+          control={control}
+          register={register}
+          activeLangId={activeLangId}
+          errors={errors}
+          activeChannel={activeChannel}
+          setActiveChannel={setActiveChannel}
+        />
+      </div>
+    </form>
+  );
+}
+
+function LanguagePill({
+  flag,
+  label,
+  active,
+  onClick,
+}: {
+  flag: React.ReactNode;
+  label: string;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <Button
+      type="button"
+      onClick={onClick}
+      variant={active ? "default" : "outline"}
+      className={cn(
+        "inline-flex items-center gap-1 rounded-full px-3 py-1 text-sm font-medium",
+      )}
+    >
+      <span>{flag}</span>
+      {label}
+      {active && (
+        <span className="ml-1 h-1.5 w-1.5 rounded-full bg-primary-foreground" />
+      )}
+    </Button>
+  );
+}
+
+const SmsIcon = () => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth={2}
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className="size-4"
+  >
+    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+  </svg>
+);
+
+const PushIcon = () => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth={2}
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className="size-4"
+  >
+    <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+    <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+  </svg>
+);
+
+const InboxIcon = () => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth={2}
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className="size-4"
+  >
+    <polyline points="22 12 16 12 14 15 10 15 8 12 2 12" />
+    <path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z" />
+  </svg>
+);
+
+function ChannelBadge({
+  icon,
+  label,
+  active,
+  onClick,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        "inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm font-medium transition-colors",
+        active
+          ? "border-primary bg-primary text-primary-foreground"
+          : "border-border bg-background text-foreground hover:bg-accent",
+      )}
+    >
+      {icon}
+      {label}
+    </button>
+  );
+}
+
+interface ChannelTemplateEditorsProps {
+  control: Control<TemplateFormData>;
+  register: ReturnType<typeof useForm<TemplateFormData>>["register"];
+  activeLangId: number;
+  errors: ReturnType<typeof useForm<TemplateFormData>>["formState"]["errors"];
+  activeChannel: ActiveChannel;
+  setActiveChannel: (channel: ActiveChannel) => void;
+}
+
+function ChannelTemplateEditors({
+  control,
+  register,
+  activeLangId,
+  errors,
+  activeChannel,
+  setActiveChannel,
+}: ChannelTemplateEditorsProps) {
+  const dispatch = useDispatch()
+  const {
+    fields: smsFields,
+    append: appendSms,
+    remove: removeSms,
+  } = useFieldArray({
+    control,
+    name: "smsTemplates",
+  });
+  const {
+    fields: pushFields,
+    append: appendPush,
+    remove: removePush,
+  } = useFieldArray({
+    control,
+    name: "pushTemplates",
+  });
+  const {
+    fields: inboxFields,
+    append: appendInbox,
+    remove: removeInbox,
+  } = useFieldArray({
+    control,
+    name: "inboxTemplates",
+  });
+
+  const allSms = useWatch({ control, name: "smsTemplates" }) ?? [];
+  const allPush = useWatch({ control, name: "pushTemplates" }) ?? [];
+  const allInbox = useWatch({ control, name: "inboxTemplates" }) ?? [];
+
+  const currentSmsIndex = smsFields.findIndex(
+    (t) => t.languageId === activeLangId,
+  );
+  const currentPushIndex = pushFields.findIndex(
+    (t) => t.languageId === activeLangId,
+  );
+  const currentInboxIndex = inboxFields.findIndex(
+    (t) => t.languageId === activeLangId,
+  );
+
+  const currentSms = allSms.find((t) => t.languageId === activeLangId);
+  const currentPush = allPush.find((t) => t.languageId === activeLangId);
+  const currentInbox = allInbox.find((t) => t.languageId === activeLangId);
+
+  const inboxBodyValue = currentInbox?.text ?? ''
+  const hasBuilderContent = inboxBodyValue.trim().startsWith('<')
+  const handleOpenBuilder = () =>{
+    if(hasBuilderContent) {
+      dispatch(setBuilderPendingLoad({ html: inboxBodyValue }))
+    }
+    router.push(`/notifications/templates/templates-builder/languageId=${activeLangId}`)
+  }
+  const toggleSms = (enabled: boolean) => {
+    if (enabled) {
+      if (currentSmsIndex === -1) {
+        appendSms(makeEmptySms(activeLangId));
       }
-      """
-    Then the campaign portal response status should be 201
-    And I save campaign portal response field "id" as "#camp1"
-
-    When I get campaign portal campaign "#camp1"
-    Then the campaign portal response status should be 200
-    And the campaign portal response field "labels[0]" should be "ANNOUNCEMENT"
-
-  Scenario: Campaign without labels still works
-    When I create a campaign portal template:
-      """
-      {
-        "name": "No Labels Template",
-        "smsTemplates": [
-          {"languageId": #lang1, "text": "hello"},
-          {"languageId": #lang2, "text": "مرحبا"}
-        ]
+    } else {
+      if (currentSmsIndex > -1) {
+        removeSms(currentSmsIndex);
       }
-      """
-    And I save campaign portal response field "id" as "#tmpl1"
+    }
+  };
 
-    When I create a campaign portal campaign:
-      """
-      {
-        "name": "Campaign Without Labels",
-        "templateId": #tmpl1,
-        "channels": ["SMS"],
-        "audienceMode": "OPEN"
+  const togglePush = (enabled: boolean) => {
+    if (enabled) {
+      if (currentPushIndex === -1) {
+        appendPush(makeEmptyPush(activeLangId));
       }
-      """
-    Then the campaign portal response status should be 201
-    And I save campaign portal response field "id" as "#camp1"
-
-    When I get campaign portal campaign "#camp1"
-    Then the campaign portal response status should be 200
-
-
-
-
-
-
-
-
-@campaign-portal-labels
-Feature: Campaign Labels
-
-  Background:
-    Given a logged in user with id "campaignuser001" and roles "campaign-inputter"
-    And the campaign portal data is clean
-    And the central LANGUAGES table contains:
-      | id     | name    | code |
-      | #lang1 | English | en   |
-      | #lang2 | Arabic  | ar   |
-
-  Scenario: Create campaign with labels
-    When I create a campaign portal template:
-      """
-      {
-        "name": "Labels Template",
-        "smsTemplates": [
-          {"languageId": #lang1, "text": "Hello"},
-          {"languageId": #lang2, "text": "مرحبا"}
-        ]
+    } else {
+      if (currentPushIndex > -1) {
+        removePush(currentPushIndex);
       }
-      """
-    Then the campaign portal response status should be 201
-    And I save campaign portal response field "id" as "#tmpl1"
+    }
+  };
 
-    When I create a campaign portal campaign:
-      """
-      {
-        "name": "Campaign With Labels",
-        "templateId": #tmpl1,
-        "channels": ["SMS"],
-        "audienceMode": "OPEN",
-        "labels": ["ANNOUNCEMENT", "TRANSACTIONAL"]
+  const toggleInbox = (enabled: boolean) => {
+    if (enabled) {
+      if (currentInboxIndex === -1) {
+        appendInbox(makeEmptyInbox(activeLangId));
       }
-      """
-    Then the campaign portal response status should be 201
-    And the campaign portal response field "labels[0]" should be "ANNOUNCEMENT"
-    And the campaign portal response field "labels[1]" should be "TRANSACTIONAL"
-    And I save campaign portal response field "id" as "#camp1"
-
-    When I get campaign portal campaign "#camp1"
-    Then the campaign portal response status should be 200
-    And the campaign portal response field "data.labels[0]" should be "ANNOUNCEMENT"
-    And the campaign portal response field "data.labels[1]" should be "TRANSACTIONAL"
-
-  Scenario: Update campaign labels
-    When I create a campaign portal template:
-      """
-      {
-        "name": "Update Labels Template",
-        "smsTemplates": [
-          {"languageId": #lang1, "text": "Hello"},
-          {"languageId": #lang2, "text": "مرحبا"}
-        ]
+    } else {
+      if (currentInboxIndex > -1) {
+        removeInbox(currentInboxIndex);
       }
-      """
-    Then the campaign portal response status should be 201
-    And I save campaign portal response field "id" as "#tmpl1"
+    }
+  };
 
-    When I create a campaign portal campaign:
-      """
-      {
-        "name": "Campaign Before Update",
-        "templateId": #tmpl1,
-        "channels": ["SMS"],
-        "audienceMode": "OPEN",
-        "labels": ["ANNOUNCEMENT"]
-      }
-      """
-    Then the campaign portal response status should be 201
-    And I save campaign portal response field "id" as "#camp1"
+  const langOpt = getLanguageOption(activeLangId);
+  const router = useRouter();
 
-    When I update campaign portal campaign "#camp1":
-      """
-      {
-        "name": "Campaign After Update",
-        "templateId": #tmpl1,
-        "channels": ["SMS"],
-        "audienceMode": "OPEN",
-        "labels": ["TRANSACTIONAL"]
-      }
-      """
-    Then the campaign portal response status should be 200
-    And the campaign portal response field "labels[0]" should be "TRANSACTIONAL"
+  return (
+    <div className="rounded-lg border bg-card">
+      {/* Header */}
+      <div className="flex items-center gap-2 border-b px-4 py-3">
+        <span className="text-sm font-semibold">
+          Channel-specific templates
+        </span>
+        <span className="ml-1 inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
+          {langOpt.flag} {langOpt.label}
+        </span>
+        <div className="ml-auto flex gap-2">
+          <ChannelBadge
+            icon={<SmsIcon />}
+            label="SMS"
+            active={activeChannel === "sms"}
+            onClick={() => setActiveChannel("sms")}
+          />
+          <ChannelBadge
+            icon={<PushIcon />}
+            label="Push"
+            active={activeChannel === "push"}
+            onClick={() => setActiveChannel("push")}
+          />
+          <ChannelBadge
+            icon={<InboxIcon />}
+            label="Inbox"
+            active={activeChannel === "inbox"}
+            onClick={() => setActiveChannel("inbox")}
+          />
+        </div>
+      </div>
 
-    When I get campaign portal campaign "#camp1"
-    Then the campaign portal response status should be 200
-    And the campaign portal response field "data.labels[0]" should be "TRANSACTIONAL"
+      {/* Body */}
+      <div className="p-4 space-y-4">
+        {activeChannel === "sms" && (
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-sm">
+                <SmsIcon />
+                <span className="font-medium">SMS</span>
+                <span className="text-xs text-muted-foreground">
+                  {currentSms
+                    ? "Using specific template"
+                    : "Using generic template"}
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-muted-foreground">
+                  Use specific template
+                </span>
+                <Switch checked={!!currentSms} onCheckedChange={toggleSms} />
+              </div>
+            </div>
+            {currentSms && currentSmsIndex > -1 && (
+              <div className="space-y-1.5">
+                <FieldLabel>Body</FieldLabel>
+                <Textarea
+                  rows={4}
+                  placeholder="SMS message body..."
+                  {...register(`smsTemplates.${currentSmsIndex}.text`)}
+                  aria-invalid={!!errors.smsTemplates?.[currentSmsIndex]?.text}
+                />
+                {errors.smsTemplates?.[currentSmsIndex]?.text && (
+                  <FieldError>
+                    {errors.smsTemplates?.[currentSmsIndex]?.text?.message}
+                  </FieldError>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+        {activeChannel === "push" && (
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-sm">
+                <PushIcon />
+                <span className="font-medium">Push Notification</span>
+                <span className="text-xs text-muted-foreground">
+                  {currentPush
+                    ? "Using specific template"
+                    : "Using generic template"}
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-muted-foreground">
+                  Use specific template
+                </span>
+                <Switch checked={!!currentPush} onCheckedChange={togglePush} />
+              </div>
+            </div>
+            {currentPush && currentPushIndex > -1 && (
+              <>
+                <div className="space-y-1.5">
+                  <FieldLabel>Title</FieldLabel>
+                  <Input
+                    placeholder="Push notification title..."
+                    {...register(`pushTemplates.${currentPushIndex}.title`)}
+                    aria-invalid={
+                      !!errors.pushTemplates?.[currentPushIndex]?.title
+                    }
+                  />
+                  {errors.pushTemplates?.[currentPushIndex]?.title && (
+                    <FieldError>
+                      {errors.pushTemplates?.[currentPushIndex]?.title?.message}
+                    </FieldError>
+                  )}
+                </div>
+                <div className="space-y-1.5">
+                  <FieldLabel>Body</FieldLabel>
+                  <Textarea
+                    rows={4}
+                    placeholder="Push notification body..."
+                    {...register(`pushTemplates.${currentPushIndex}.text`)}
+                    aria-invalid={
+                      !!errors.pushTemplates?.[currentPushIndex]?.text
+                    }
+                  />
+                  {errors.pushTemplates?.[currentPushIndex]?.text && (
+                    <FieldError>
+                      {errors.pushTemplates?.[currentPushIndex]?.text?.message}
+                    </FieldError>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+        )}
+        {activeChannel === "inbox" && (
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-sm">
+                <InboxIcon />
+                <span className="font-medium">Inbox</span>
+                <span className="text-xs text-muted-foreground">
+                  {currentInbox
+                    ? "Using specific template"
+                    : "Using generic template"}
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                type="button"
+                variant={hasBuilderContent ? 'outline' : 'default'}
+                onClick = {handleOpenBuilder}
+                >
+                  {hasBuilderContent ? 'Edit in Builder' : ' open Template Builder'}
+                </Button>
 
-  Scenario: Campaign without labels still works
-    When I create a campaign portal template:
-      """
-      {
-        "name": "No Labels Template",
-        "smsTemplates": [
-          {"languageId": #lang1, "text": "Hello"},
-          {"languageId": #lang2, "text": "مرحبا"}
-        ]
-      }
-      """
-    Then the campaign portal response status should be 201
-    And I save campaign portal response field "id" as "#tmpl1"
+                <span className="text-xs text-muted-foreground">
+                  Use specific template
+                </span>
 
-    When I create a campaign portal campaign:
-      """
-      {
-        "name": "Campaign Without Labels",
-        "templateId": #tmpl1,
-        "channels": ["SMS"],
-        "audienceMode": "OPEN"
-      }
-      """
-    Then the campaign portal response status should be 201
-    And the campaign portal response field "name" should be "Campaign Without Labels"
+                <Switch
+                  checked={!!currentInbox}
+                  onCheckedChange={toggleInbox}
+                />
+              </div>
+            </div>
+            {currentInbox && currentInboxIndex > -1 && (
+              <>
+                <div className="space-y-1.5">
+                  <FieldLabel>Subject</FieldLabel>
+                  <Input
+                    placeholder="Inbox message subject..."
+                    {...register(`inboxTemplates.${currentInboxIndex}.subject`)}
+                    aria-invalid={
+                      !!errors.inboxTemplates?.[currentInboxIndex]?.subject
+                    }
+                  />
+                  {errors.inboxTemplates?.[currentInboxIndex]?.subject && (
+                    <FieldError>
+                      {
+                        errors.inboxTemplates?.[currentInboxIndex]?.subject
+                          ?.message
+                      }
+                    </FieldError>
+                  )}
+                </div>
+                <div className="space-y-1.5">
+                  <FieldLabel>Summary</FieldLabel>
+                  <Textarea
+                    rows={4}
+                    placeholder="Inbox summary..."
+                    {...register(`inboxTemplates.${currentInboxIndex}.summary`)}
+                    aria-invalid={
+                      !!errors.inboxTemplates?.[currentInboxIndex]?.summary
+                    }
+                  />
+                  {errors.inboxTemplates?.[currentInboxIndex]?.summary && (
+                    <FieldError>
+                      {
+                        errors.inboxTemplates?.[currentInboxIndex]?.summary
+                          ?.message
+                      }
+                    </FieldError>
+                  )}
+                </div>
+                <div className="space-y-1.5">
+                  <FieldLabel>Body</FieldLabel>
+                  <Textarea
+                    rows={8}
+                    placeholder="Inbox message body..."
+                    {...register(`inboxTemplates.${currentInboxIndex}.text`)}
+                    aria-invalid={
+                      !!errors.inboxTemplates?.[currentInboxIndex]?.text
+                    }
+                  />
+                  {errors.inboxTemplates?.[currentInboxIndex]?.text && (
+                    <FieldError>
+                      {
+                        errors.inboxTemplates?.[currentInboxIndex]?.text
+                          ?.message
+                      }
+                    </FieldError>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
 
-    And I save campaign portal response field "id" as "#camp1"
 
-    When I get campaign portal campaign "#camp1"
-    Then the campaign portal response status should be 200
+
+
+
+
+
+
