@@ -335,3 +335,11 @@ export function isMutuallyBlocked(
     .filter(v => v !== value)
     .some(v => selected.includes(v as CampaignLabel))
 }
+/******************steo 3*******/
+labels: z
+  .array(z.enum(CAMPAIGN_LABEL_VALUES))
+  .min(1, { message: 'Select at least one label' })
+  .refine(
+    vals => !(vals.includes('TRANSACTIONAL') && vals.includes('ANNOUNCEMENT')),
+    { message: 'Transactional Note and Announcement cannot be selected together' },
+  ),
