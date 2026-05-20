@@ -559,3 +559,356 @@ export function CampaignConfigurePage() {
   )
 }
 
+
+
+                                  /***********************/
+                                      {/* Channels */}
+      <Card className="animate-in fade-in slide-in-from-bottom-2 duration-300 delay-75">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Smartphone className="h-4 w-4 text-primary" />
+            Channels
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <FieldGroup>
+            <Field>
+              <FieldLabel>Select delivery channels</FieldLabel>
+              <FieldDescription>
+                Drag cards to set priority order. Check &quot;Select All&quot;
+                to enable every channel.
+              </FieldDescription>
+              <FieldContent>
+                {!readOnly && (
+                  <label className="flex items-center gap-2 mb-3 cursor-pointer text-sm font-medium">
+                    <Checkbox
+                      checked={allSelected}
+                      onCheckedChange={(checked) => handleSelectAll(!!checked)}
+                    />
+                    Select All Channels
+                  </label>
+                )}
+
+                <Controller
+                  name="channels"
+                  control={control}
+                  render={({ field }) => (
+                    <div className="grid grid-cols-1 gap-3">
+                      {orderedChannels.map((opt, idx) => {
+                        const checked = field.value?.includes(opt.value);
+                        return (
+                          <div
+                            key={opt.value}
+                            draggable={!readOnly}
+                            onDragStart={
+                              readOnly ? undefined : (e) => onDragStart(e, idx)
+                            }
+                            onDragOver={
+                              readOnly ? undefined : (e) => onDragOver(e, idx)
+                            }
+                            onDrop={readOnly ? undefined : onDrop}
+                            onDragEnd={readOnly ? undefined : onDragEnd}
+                            className={`relative flex items-center gap-3 rounded-lg border-2 p-4 transition-all duration-200 ${
+                              readOnly
+                                ? "cursor-default"
+                                : "cursor-grab active:cursor-grabbing hover:shadow-sm"
+                            } ${dragIdx === idx ? "opacity-40 scale-95" : ""} ${
+                              checked
+                                ? "border-primary bg-primary/5 shadow-sm"
+                                : "border-border hover:border-primary/30"
+                            }`}
+                          >
+                            {!readOnly && (
+                              <GripVertical className="h-4 w-4 text-muted-foreground/50 shrink-0" />
+                            )}
+                            <Checkbox
+                              checked={checked}
+                              disabled={readOnly}
+                              onCheckedChange={(isChecked) => {
+                                const next = isChecked
+                                  ? [...(field.value || []), opt.value]
+                                  : field.value?.filter(
+                                      (v) => v !== opt.value,
+                                    ) || [];
+                                field.onChange(next);
+                              }}
+                            />
+                            <opt.icon
+                              className={`h-5 w-5 transition-colors ${checked ? "text-primary" : "text-muted-foreground"}`}
+                            />
+                            <div className="flex-1">
+                              <span className="text-sm font-medium">
+                                {opt.label}
+                              </span>
+                              <p className="text-xs text-muted-foreground">
+                                {opt.desc}
+                              </p>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                />
+                {errors.channels && (
+                  <FieldError>{errors.channels.message}</FieldError>
+                )}
+              </FieldContent>
+            </Field>
+
+            <Field>
+              <FieldLabel>Dispatch Logic</FieldLabel>
+              <FieldContent>
+                <Controller
+                  name="dispatchLogic"
+                  control={control}
+                  render={({ field }) => (
+                    <div className="flex flex-row gap-3">
+                      {DISPATCH_OPTIONS.map(([v, l]) => {
+                        const active = field.value === v;
+                        return (
+                          <button
+                            key={v}
+                            type="button"
+                            disabled={readOnly}
+                            onClick={() => field.onChange(v)}
+                            className={`flex items-center gap-2 rounded-lg border-2 px-4 py-2.5 text-sm font-medium transition-all duration-200 ${
+                              readOnly ? "cursor-default" : "cursor-pointer"
+                            } ${
+                              active
+                                ? "border-primary bg-primary/5 text-primary"
+                                : "border-border hover:border-primary/30 text-muted-foreground"
+                            }`}
+                          >
+                            <span
+                              className={`h-2 w-2 rounded-full transition-colors ${
+                                active ? "bg-primary" : "bg-muted-foreground/30"
+                              }`}
+                            />
+                            {l}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                />
+                {errors.dispatchLogic && (
+                  <FieldError>{errors.dispatchLogic.message}</FieldError>
+                )}
+              </FieldContent>
+            </Field>
+
+            <Field>
+              <FieldLabel>Persist Notifications</FieldLabel>
+              <FieldDescription>
+                Save delivered notifications in the mobile app inbox
+              </FieldDescription>
+              <FieldContent>
+                <Controller
+                  name="isPersist"
+                  control={control}
+                  render={({ field }) => (
+                    <div className="grid grid-cols-2 gap-3">
+                      {[
+                        {
+                          value: true,
+                          label: "Enabled",
+                          desc: "Saved in mobile app inbox",
+                        },
+                        {
+                          value: false,
+                          label: "Disabled",
+                          desc: "Not persisted after delivery",
+                        },
+                      ].map((opt) => {
+                        const active = field.value === opt.value;
+                        return (
+                          <button
+                            key={String(opt.value)}
+                            type="button"
+                            disabled={readOnly}
+                            onClick={() => field.onChange(opt.value)}
+                            className={`relative flex items-center gap-3 rounded-lg border-2 p-4 transition-all duration-200 text-left ${
+                              readOnly
+                                ? "cursor-default"
+                                : "cursor-pointer hover:shadow-sm"
+                            } ${
+                              active
+                                ? "border-primary bg-primary/5 shadow-sm"
+                                : "border-border hover:border-primary/30"
+                            }`}
+                          >
+                            <Smartphone
+                              className={`h-5 w-5 transition-colors ${active ? "text-primary" : "text-muted-foreground"}`}
+                            />
+                            <div>
+                              <span className="text-sm font-medium">
+                                {opt.label}
+                              </span>
+                              <p className="text-xs text-muted-foreground">
+                                {opt.desc}
+                              </p>
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                />
+              </FieldContent>
+            </Field>
+          </FieldGroup>
+        </CardContent>
+      </Card>
+
+      {/* Labels */}
+      <Field>
+        <FieldLabel className="flex items-center gap-2">
+          <Tag className="h-4 w-4 text-muted-foreground" />
+          Labels
+        </FieldLabel>
+        <FieldDescription>
+          Transactional Note and Announcement cannot be selected together.
+        </FieldDescription>
+        <FieldContent>
+          <Controller
+            name="labels"
+            control={control}
+            render={({ field }) => {
+              const currentLabels = (field.value ?? []) as CampaignLabel[];
+
+              const toggleLabel = (value: CampaignLabel) => {
+                if (currentLabels.includes(value)) {
+                  field.onChange(currentLabels.filter((v) => v !== value));
+                } else {
+                  if (isMutuallyBlocked(value, currentLabels)) return;
+                  field.onChange([...currentLabels, value]);
+                }
+              };
+
+              return (
+                <>
+                  <Popover
+                    open={labelOpen}
+                    onOpenChange={(open) => {
+                      if (!readOnly) {
+                        setLabelOpen(open);
+                        if (!open) setLabelSearch("");
+                      }
+                    }}
+                  >
+                    <PopoverTrigger asChild>
+                      <button
+                        type="button"
+                        disabled={readOnly}
+                        className="w-full min-h-[38px] flex flex-wrap gap-1.5 items-center rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs hover:border-primary/50 transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        {currentLabels.length > 0 ? (
+                          <>
+                            {currentLabels.map((val) => {
+                              const opt = CAMPAIGN_LABEL_OPTIONS.find(
+                                (l) => l.value === val,
+                              );
+                              if (!opt) return null;
+                              return (
+                                <span
+                                  key={val}
+                                  className="inline-flex items-center gap-1 rounded-full bg-primary/10 border border-primary/20 px-2.5 py-0.5 text-xs font-medium text-primary"
+                                >
+                                  {opt.label}
+                                  {!readOnly && (
+                                    <span
+                                      role="button"
+                                      tabIndex={0}
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        toggleLabel(val);
+                                      }}
+                                      className="rounded-full hover:bg-primary/20 p-0.5 transition-colors cursor-pointer"
+                                      aria-label={`Remove ${opt.label}`}
+                                    >
+                                      <X className="h-3 w-3" />
+                                    </span>
+                                  )}
+                                </span>
+                              );
+                            })}
+                          </>
+                        ) : (
+                          <span className="text-muted-foreground">
+                            Select labels...
+                          </span>
+                        )}
+                        <ChevronDown className="h-4 w-4 opacity-50 shrink-0 ml-auto" />
+                      </button>
+                    </PopoverTrigger>
+
+                    <PopoverContent
+                      className="p-0 min-w-[300px] w-[var(--radix-popover-trigger-width)]"
+                      align="start"
+                    >
+                      <Command>
+                        <CommandInput
+                          placeholder="Search labels..."
+                          value={labelSearch}
+                          onValueChange={setLabelSearch}
+                        />
+                        <CommandList>
+                          <CommandEmpty>No labels found.</CommandEmpty>
+                          <CommandGroup>
+                            {filteredLabelOptions.map((opt) => {
+                              const checked = currentLabels.includes(opt.value);
+                              const blocked =
+                                !checked &&
+                                isMutuallyBlocked(opt.value, currentLabels);
+                              return (
+                                <CommandItem
+                                  key={opt.value}
+                                  value={opt.label}
+                                  disabled={blocked}
+                                  onSelect={() => toggleLabel(opt.value)}
+                                >
+                                  <Check
+                                    className={`mr-2 h-4 w-4 shrink-0 ${checked ? "opacity-100" : "opacity-0"}`}
+                                  />
+                                  <div className="flex-1 min-w-0">
+                                    <span className="font-medium">
+                                      {opt.label}
+                                    </span>
+                                    <p className="text-xs text-muted-foreground">
+                                      {opt.desc}
+                                    </p>
+                                  </div>
+                                  {opt.mutualExcl && (
+                                    <span className="ml-2 shrink-0 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-300 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-800">
+                                      excl.
+                                    </span>
+                                  )}
+                                </CommandItem>
+                              );
+                            })}
+                          </CommandGroup>
+                        </CommandList>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
+
+                  {hasLabelConflict && (
+                    <div className="mt-3 flex items-start gap-3 rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm animate-in fade-in duration-200 dark:border-amber-900 dark:bg-amber-950/30">
+                      <AlertTriangle className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
+                      <p className="text-amber-800 dark:text-amber-400">
+                        <strong>Conflict:</strong> Transactional Note and
+                        Announcement cannot be selected together. Please remove
+                        one.
+                      </p>
+                    </div>
+                  )}
+                </>
+              );
+            }}
+          />
+
+          {errors.labels && <FieldError>{errors.labels.message}</FieldError>}
+        </FieldContent>
+      </Field>
+
