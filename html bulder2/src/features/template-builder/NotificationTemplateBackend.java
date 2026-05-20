@@ -359,3 +359,147 @@ const filteredAudiences = (audiencesData?.data ?? []).filter(...)
 const filteredLabelOptions = CAMPAIGN_LABEL_OPTIONS.filter(l =>
   l.label.toLowerCase().includes(labelSearch.toLowerCase()),
 )
+
+
+  /*******step5********************/
+  <Field>
+  <FieldLabel className="flex items-center gap-2">
+    <Tag className="h-4 w-4 text-muted-foreground" />
+    Labels
+  </FieldLabel>
+  <FieldDescription>
+    Transactional Note and Announcement cannot be selected together.
+  </FieldDescription>
+  <FieldContent>
+    <Controller
+      name="labels"
+      control={control}
+      render={({ field }) => {
+        const currentLabels = (field.value ?? []) as CampaignLabel[]
+
+        const toggleLabel = (value: CampaignLabel) => {
+          if (currentLabels.includes(value)) {
+            field.onChange(currentLabels.filter(v => v !== value))
+          } else {
+            if (isMutuallyBlocked(value, currentLabels)) return
+            field.onChange([...currentLabels, value])
+          }
+        }
+
+        return (
+          <>
+            <Popover
+              open={labelOpen}
+              onOpenChange={open => {
+                if (!readOnly) {
+                  setLabelOpen(open)
+                  if (!open) setLabelSearch('')
+                }
+              }}
+            >
+              <PopoverTrigger asChild>
+                <button
+                  type="button"
+                  disabled={readOnly}
+                  className="w-full min-h-[38px] flex flex-wrap gap-1.5 items-center rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs hover:border-primary/50 transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {currentLabels.length > 0 ? (
+                    <>
+                      {currentLabels.map(val => {
+                        const opt = CAMPAIGN_LABEL_OPTIONS.find(l => l.value === val)
+                        if (!opt) return null
+                        return (
+                          <span
+                            key={val}
+                            className="inline-flex items-center gap-1 rounded-full bg-primary/10 border border-primary/20 px-2.5 py-0.5 text-xs font-medium text-primary"
+                          >
+                            {opt.label}
+                            {!readOnly && (
+                              <button
+                                type="button"
+                                onClick={e => {
+                                  e.stopPropagation()
+                                  toggleLabel(val)
+                                }}
+                                className="rounded-full hover:bg-primary/20 p-0.5 transition-colors"
+                                aria-label={`Remove ${opt.label}`}
+                              >
+                                <X className="h-3 w-3" />
+                              </button>
+                            )}
+                          </span>
+                        )
+                      })}
+                    </>
+                  ) : (
+                    <span className="text-muted-foreground">Select labels...</span>
+                  )}
+                  <ChevronDown className="h-4 w-4 opacity-50 shrink-0 ml-auto" />
+                </button>
+              </PopoverTrigger>
+
+              <PopoverContent
+                className="p-0 min-w-[300px] w-[var(--radix-popover-trigger-width)]"
+                align="start"
+              >
+                <Command>
+                  <CommandInput
+                    placeholder="Search labels..."
+                    value={labelSearch}
+                    onValueChange={setLabelSearch}
+                  />
+                  <CommandList>
+                    <CommandEmpty>No labels found.</CommandEmpty>
+                    <CommandGroup>
+                      {filteredLabelOptions.map(opt => {
+                        const checked = currentLabels.includes(opt.value)
+                        const blocked = !checked && isMutuallyBlocked(opt.value, currentLabels)
+                        return (
+                          <CommandItem
+                            key={opt.value}
+                            value={opt.label}
+                            disabled={blocked}
+                            onSelect={() => toggleLabel(opt.value)}
+                          >
+                            <Check
+                              className={`mr-2 h-4 w-4 shrink-0 ${checked ? 'opacity-100' : 'opacity-0'}`}
+                            />
+                            <div className="flex-1 min-w-0">
+                              <span className="font-medium">{opt.label}</span>
+                              <p className="text-xs text-muted-foreground">
+                                {opt.desc}
+                              </p>
+                            </div>
+                            {opt.mutualExcl && (
+                              <span className="ml-2 shrink-0 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-300 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-800">
+                                excl.
+                              </span>
+                            )}
+                          </CommandItem>
+                        )
+                      })}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
+
+            {hasLabelConflict && (
+              <div className="mt-3 flex items-start gap-3 rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm animate-in fade-in duration-200 dark:border-amber-900 dark:bg-amber-950/30">
+                <AlertTriangle className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
+                <p className="text-amber-800 dark:text-amber-400">
+                  <strong>Conflict:</strong> Transactional Note and Announcement
+                  cannot be selected together. Please remove one.
+                </p>
+              </div>
+            )}
+          </>
+        )
+      }}
+    />
+
+    {errors.labels && (
+      <FieldError>{errors.labels.message}</FieldError>
+    )}
+  </FieldContent>
+</Field>
