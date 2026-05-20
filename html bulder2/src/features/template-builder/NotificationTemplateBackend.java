@@ -296,3 +296,42 @@ export const {
   useLazyGetCampaignsAsCSVQuery,
   useGetCampaignAudiencesQuery,
 } = campaignsApi
+/*******constant******************/
+    export const CAMPAIGN_LABEL_VALUES = [
+  'NEW_PRODUCT',
+  'SYSTEM_OUTAGE',
+  'CC_TRANSACTION',
+  'OFFER',
+  'ATM_WITHDRAWAL',
+  'ANNOUNCEMENT',
+  'TRANSACTIONAL',
+] as const
+
+export type CampaignLabel = (typeof CAMPAIGN_LABEL_VALUES)[number]
+
+export const CAMPAIGN_LABEL_OPTIONS: {
+  value: CampaignLabel
+  label: string
+  desc: string
+  mutualExcl?: true
+}[] = [
+  { value: 'NEW_PRODUCT',    label: 'New Product',             desc: 'Announce a newly launched product or feature' },
+  { value: 'SYSTEM_OUTAGE',  label: 'System Outage',           desc: 'Alert customers about a service disruption'   },
+  { value: 'CC_TRANSACTION', label: 'Credit Card Transaction', desc: 'Notification for card activity'               },
+  { value: 'OFFER',          label: 'Offer',                   desc: 'Promotions, discounts, and special deals'     },
+  { value: 'ATM_WITHDRAWAL', label: 'ATM Withdrawal',          desc: 'Alert for cash withdrawal events'             },
+  { value: 'ANNOUNCEMENT',   label: 'Announcement',            desc: 'General broadcast communications', mutualExcl: true },
+  { value: 'TRANSACTIONAL',  label: 'Transactional Note',      desc: 'Receipts and transaction confirmations', mutualExcl: true },
+]
+
+export const MUTUALLY_EXCLUSIVE_LABELS = ['TRANSACTIONAL', 'ANNOUNCEMENT'] as const
+
+export function isMutuallyBlocked(
+  value: CampaignLabel,
+  selected: CampaignLabel[],
+): boolean {
+  if (!MUTUALLY_EXCLUSIVE_LABELS.includes(value as typeof MUTUALLY_EXCLUSIVE_LABELS[number])) return false
+  return MUTUALLY_EXCLUSIVE_LABELS
+    .filter(v => v !== value)
+    .some(v => selected.includes(v as CampaignLabel))
+}
