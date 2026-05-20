@@ -503,3 +503,59 @@ const filteredLabelOptions = CAMPAIGN_LABEL_OPTIONS.filter(l =>
     )}
   </FieldContent>
 </Field>
+                                
+                                
+    /********campaign configure page*********
+                                'use client'
+
+import { toast } from '@cib/design-system-components'
+import { useRouter } from 'next/navigation'
+
+import { useCreateCampaignMutation, useSubmitCampaignMutation } from '../state'
+import {
+  CampaignConfigFormValues,
+  CampaignConfigureForm,
+} from './components/campaigns/campaign-configure-form'
+import {
+  CAMPAIGNS_ROUTE,
+  campaignSaveErrorMessage,
+} from './components/campaigns/utils'
+
+export function CampaignConfigurePage() {
+  const router = useRouter()
+  const [createCampaign, { isLoading }] = useCreateCampaignMutation()
+  const [submitCampaign] = useSubmitCampaignMutation()
+
+  const save = async (values: CampaignConfigFormValues, submit?: boolean) => {
+    try {
+      const campaign = await createCampaign({
+        name: `Campaign - ${new Date().toISOString().slice(0, 10)}`,
+        templateId: Number(values.templateId),
+        channels: values.channels,
+        isPersist: values.isPersist,
+        dispatchLogic: values.dispatchLogic,
+        audienceIds: values.audienceIds,
+        audienceMode: values.audienceMode,
+      }).unwrap()
+      if (submit) await submitCampaign(String(campaign.id)).unwrap()
+      router.push(CAMPAIGNS_ROUTE)
+    } catch {
+      toast.error(campaignSaveErrorMessage(submit))
+    }
+  }
+
+  return (
+    <div className="w-full">
+      <h1 className="text-2xl font-bold mb-1">Campaign Configuration</h1>
+      <p className="text-sm text-muted-foreground mb-6">
+        Orchestrate high-precision multi-channel outreach strategies.
+      </p>
+      <CampaignConfigureForm
+        onSaveDraft={v => save(v)}
+        onSubmitForApproval={v => save(v, true)}
+        isSubmitting={isLoading}
+      />
+    </div>
+  )
+}
+
