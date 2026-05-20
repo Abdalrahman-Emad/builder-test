@@ -343,3 +343,19 @@ labels: z
     vals => !(vals.includes('TRANSACTIONAL') && vals.includes('ANNOUNCEMENT')),
     { message: 'Transactional Note and Announcement cannot be selected together' },
   ),
+
+/*******step4**************/
+const [templateOpen, setTemplateOpen] = useState(false)
+const [templateSearch, setTemplateSearch] = useState('')
+const [audienceOpen, setAudienceOpen] = useState(false)
+const [audienceSearch, setAudienceSearch] = useState('')
+// ✅ add here, same group
+const [labelOpen, setLabelOpen] = useState(false)
+const [labelSearch, setLabelSearch] = useState('')
+
+const filteredTemplates = (templates?.data ?? []).filter(...)
+const filteredAudiences = (audiencesData?.data ?? []).filter(...)
+// ✅ add here, same group
+const filteredLabelOptions = CAMPAIGN_LABEL_OPTIONS.filter(l =>
+  l.label.toLowerCase().includes(labelSearch.toLowerCase()),
+)
