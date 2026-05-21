@@ -912,3 +912,101 @@ export function CampaignConfigurePage() {
         </FieldContent>
       </Field>
 
+/***************enhanced label*****************/
+            {/* Labels */}
+<Field>
+  <FieldLabel className="flex items-center gap-2">
+    <Tag className="h-4 w-4 text-muted-foreground" />
+    Labels
+  </FieldLabel>
+  <FieldDescription>
+    Transactional Note and Announcement cannot be selected together.
+  </FieldDescription>
+  <FieldContent>
+    <Controller
+      name="labels"
+      control={control}
+      render={({ field }) => {
+        const currentLabels = (field.value ?? []) as CampaignLabel[];
+
+        const toggleLabel = (value: CampaignLabel) => {
+          if (currentLabels.includes(value)) {
+            field.onChange(currentLabels.filter((v) => v !== value));
+          } else {
+            if (isMutuallyBlocked(value, currentLabels)) return;
+            field.onChange([...currentLabels, value]);
+          }
+        };
+
+        return (
+          <>
+            <div className="grid grid-cols-1 gap-3">
+              {CAMPAIGN_LABEL_OPTIONS.map((opt) => {
+                const checked = currentLabels.includes(opt.value);
+                const blocked =
+                  !checked && isMutuallyBlocked(opt.value, currentLabels);
+
+                return (
+                  <div
+                    key={opt.value}
+                    onClick={() =>
+                      !readOnly && !blocked && toggleLabel(opt.value)
+                    }
+                    className={`relative flex items-center gap-3 rounded-lg border-2 p-4 transition-all duration-200 ${
+                      readOnly || blocked
+                        ? "cursor-default"
+                        : "cursor-pointer hover:shadow-sm"
+                    } ${
+                      checked
+                        ? "border-primary bg-primary/5 shadow-sm"
+                        : blocked
+                          ? "border-border opacity-40"
+                          : "border-border hover:border-primary/30"
+                    }`}
+                  >
+                    <Checkbox
+                      checked={checked}
+                      disabled={readOnly || blocked}
+                      onCheckedChange={() =>
+                        !readOnly && !blocked && toggleLabel(opt.value)
+                      }
+                      onClick={(e) => e.stopPropagation()}
+                    />
+                    <Tag
+                      className={`h-5 w-5 transition-colors shrink-0 ${
+                        checked ? "text-primary" : "text-muted-foreground"
+                      }`}
+                    />
+                    <div className="flex-1">
+                      <span className="text-sm font-medium">{opt.label}</span>
+                      <p className="text-xs text-muted-foreground">
+                        {opt.desc}
+                      </p>
+                    </div>
+                    {opt.mutualExcl && (
+                      <span className="shrink-0 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-300 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-800">
+                        excl.
+                      </span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+
+            {hasLabelConflict && (
+              <div className="mt-3 flex items-start gap-3 rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm animate-in fade-in duration-200 dark:border-amber-900 dark:bg-amber-950/30">
+                <AlertTriangle className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
+                <p className="text-amber-800 dark:text-amber-400">
+                  <strong>Conflict:</strong> Transactional Note and Announcement
+                  cannot be selected together. Please remove one.
+                </p>
+              </div>
+            )}
+          </>
+        );
+      }}
+    />
+
+    {errors.labels && <FieldError>{errors.labels.message}</FieldError>}
+  </FieldContent>
+</Field>
