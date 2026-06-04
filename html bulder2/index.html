@@ -206,6 +206,22 @@ ox/2.1.0/qdox-2.1.0.jar
 [ERROR]   mvn <args> -rf :notifications-proto -->
 
 
+
+
+
+
+
+
+keytool -importcert -trustcacerts ^
+-keystore "C:\Program Files\Java\jdk-25.0.3\lib\security\cacerts" ^
+-storepass changeit ^
+-alias nexus ^
+-file C:\Users\<you>\Downloads\nexus.cer
+
+
+
+
+
 <!doctype html>
 <html lang="en">
   <head>
